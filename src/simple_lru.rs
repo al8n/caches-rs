@@ -1,14 +1,19 @@
 use crate::{
-    CacheError, DefaultEvictCallback, Entry, EntryLinkedList, KeyRef, LRUCache, OnEvictCallback,
+    CacheError, DefaultEvictCallback, Entry, EntryLinkedList, Iter, IterMut, KeyRef, LRUCache,
+    OnEvictCallback,
 };
 
 use alloc::boxed::Box;
 use alloc::vec::Vec;
 use core::borrow::{Borrow, BorrowMut};
+use core::fmt::{Debug, Formatter};
 use core::hash::{BuildHasher, Hash};
 use core::iter::FusedIterator;
+use core::marker::PhantomData;
 use core::mem;
+use core::ops::{Index, IndexMut};
 use core::option::Option::Some;
+use core::ptr::NonNull;
 use hashbrown::hash_map::DefaultHashBuilder;
 use hashbrown::HashMap;
 
@@ -21,14 +26,14 @@ pub struct SimpleLRU<K, V, E = DefaultEvictCallback, S = DefaultHashBuilder> {
 
 impl<K: Hash + Eq, V, E: OnEvictCallback, S: BuildHasher> SimpleLRU<K, V, E, S> {
     pub fn with_callback_and_hasher(size: usize, callback: E, hash_builder: S) -> Self {
-        Self::build(
+        Self::new_in(
             size,
             HashMap::with_capacity_and_hasher(size, hash_builder),
             Some(callback),
         )
     }
 
-    fn build(
+    fn new_in(
         size: usize,
         items: HashMap<KeyRef<K>, Box<Entry<K, V>>, S>,
         on_evict: Option<E>,
@@ -52,7 +57,7 @@ impl<K: Hash + Eq, V, E: OnEvictCallback, S: BuildHasher> SimpleLRU<K, V, E, S> 
 
         match ent_ptr {
             None => {
-                let evict = self.evict_list.len > self.size;
+                let evict = self.evict_list.len >= self.size;
                 // Verify size not exceed
                 let mut ent: Box<Entry<K, V>> = if evict {
                     let old_key = self.evict_list.back().unwrap();
@@ -186,9 +191,31 @@ impl<K: Hash + Eq, V, E: OnEvictCallback, S: BuildHasher> SimpleLRU<K, V, E, S> 
         self.items.clear();
     }
 
-    /// `keys` returns a slice of the keys in the cache, from oldest to newest
-    pub fn keys(&self) -> Vec<K> {
-        todo!()
+    /// `iter` returns a slice of the key-value pairs in the cache, from newest to oldest
+    pub fn iter(&self) -> Iter<'_, K, V> {
+        self.evict_list.iter()
+    }
+
+    /// `iter_mut` returns a slice of the key-value pairs(mutable) in the cache, from newest to oldest
+    pub fn iter_mut(&mut self) -> IterMut<'_, K, V> {
+        self.evict_list.iter_mut()
+    }
+
+    /// `keys` returns a slice of the keys in the cache, from newest to oldest
+    pub fn keys(&self) -> Keys<'_, K, V> {
+        Keys { inner: self.iter() }
+    }
+
+    /// `values` returns a slice of the values in the cache, from newest to oldest
+    pub fn values(&self) -> Values<'_, K, V> {
+        Values { inner: self.iter() }
+    }
+
+    /// `values_mut` returns a slice of the values(mutable) in the cache, from newest to oldest
+    pub fn values_mut(&mut self) -> ValuesMut<'_, K, V> {
+        ValuesMut {
+            inner: self.iter_mut(),
+        }
     }
 
     /// `peek` returns key's value without updating the "recently used"-ness of the key.
@@ -227,13 +254,13 @@ impl<K: Hash + Eq, V, E: OnEvictCallback, S: BuildHasher> SimpleLRU<K, V, E, S> 
 
 impl<K: Hash + Eq, V> SimpleLRU<K, V, DefaultEvictCallback, DefaultHashBuilder> {
     pub fn new(size: usize) -> Self {
-        Self::build(size, HashMap::with_capacity(size), None)
+        Self::new_in(size, HashMap::with_capacity(size), None)
     }
 }
 
 impl<K: Hash + Eq, V, S: BuildHasher> SimpleLRU<K, V, DefaultEvictCallback, S> {
     pub fn with_hasher(size: usize, hash_builder: S) -> Self {
-        Self::build(
+        Self::new_in(
             size,
             HashMap::with_capacity_and_hasher(size, hash_builder),
             None,
@@ -243,9 +270,162 @@ impl<K: Hash + Eq, V, S: BuildHasher> SimpleLRU<K, V, DefaultEvictCallback, S> {
 
 impl<K: Hash + Eq, V, E: OnEvictCallback> SimpleLRU<K, V, E, DefaultHashBuilder> {
     pub fn with_evict_callback(size: usize, callback: E) -> Self {
-        Self::build(size, HashMap::with_capacity(size), Some(callback))
+        Self::new_in(size, HashMap::with_capacity(size), Some(callback))
     }
 }
+
+pub struct Keys<'a, K: 'a, V: 'a> {
+    inner: Iter<'a, K, V>,
+}
+
+impl<K, V> Clone for Keys<'_, K, V> {
+    #[cfg_attr(feature = "inline-more", inline)]
+    fn clone(&self) -> Self {
+        Keys {
+            inner: self.inner.clone(),
+        }
+    }
+}
+
+impl<K: Debug, V> Debug for Keys<'_, K, V> {
+    fn fmt(&self, f: &mut Formatter<'_>) -> core::fmt::Result {
+        f.debug_list().entries(self.clone()).finish()
+    }
+}
+
+impl<'a, K, V> Iterator for Keys<'a, K, V> {
+    type Item = &'a K;
+
+    #[cfg_attr(feature = "inline-more", inline)]
+    fn next(&mut self) -> Option<&'a K> {
+        // Avoid `Option::map` because it bloats LLVM IR.
+        match self.inner.next() {
+            Some((k, _)) => Some(k),
+            None => None,
+        }
+    }
+    #[cfg_attr(feature = "inline-more", inline)]
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        self.inner.size_hint()
+    }
+}
+
+impl<'a, K, V> DoubleEndedIterator for Keys<'a, K, V> {
+    fn next_back(&mut self) -> Option<Self::Item> {
+        match self.inner.next_back() {
+            None => None,
+            Some((k, _)) => Some(k),
+        }
+    }
+}
+
+impl<K, V> ExactSizeIterator for Keys<'_, K, V> {
+    #[cfg_attr(feature = "inline-more", inline)]
+    fn len(&self) -> usize {
+        self.inner.len()
+    }
+}
+
+impl<K, V> FusedIterator for Keys<'_, K, V> {}
+
+pub struct Values<'a, K: 'a, V: 'a> {
+    inner: Iter<'a, K, V>,
+}
+
+impl<K, V> Clone for Values<'_, K, V> {
+    #[cfg_attr(feature = "inline-more", inline)]
+    fn clone(&self) -> Self {
+        Values {
+            inner: self.inner.clone(),
+        }
+    }
+}
+
+impl<K: Debug, V: Debug> Debug for Values<'_, K, V> {
+    fn fmt(&self, f: &mut Formatter<'_>) -> core::fmt::Result {
+        f.debug_list().entries(self.clone()).finish()
+    }
+}
+
+impl<'a, K, V> Iterator for Values<'a, K, V> {
+    type Item = &'a V;
+
+    #[cfg_attr(feature = "inline-more", inline)]
+    fn next(&mut self) -> Option<&'a V> {
+        // Avoid `Option::map` because it bloats LLVM IR.
+        match self.inner.next() {
+            Some((_, v)) => Some(v),
+            None => None,
+        }
+    }
+    #[cfg_attr(feature = "inline-more", inline)]
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        self.inner.size_hint()
+    }
+}
+
+impl<'a, K, V> DoubleEndedIterator for Values<'a, K, V> {
+    fn next_back(&mut self) -> Option<Self::Item> {
+        match self.inner.next_back() {
+            None => None,
+            Some((_, v)) => Some(v),
+        }
+    }
+}
+
+impl<K, V> ExactSizeIterator for Values<'_, K, V> {
+    #[cfg_attr(feature = "inline-more", inline)]
+    fn len(&self) -> usize {
+        self.inner.len()
+    }
+}
+
+impl<K, V> FusedIterator for Values<'_, K, V> {}
+
+pub struct ValuesMut<'a, K: 'a, V: 'a> {
+    inner: IterMut<'a, K, V>,
+}
+
+impl<K: Debug, V: Debug> Debug for ValuesMut<'_, K, V> {
+    fn fmt(&self, f: &mut Formatter<'_>) -> core::fmt::Result {
+        f.debug_list().entries(self.inner.iter()).finish()
+    }
+}
+
+impl<'a, K, V> Iterator for ValuesMut<'a, K, V> {
+    type Item = &'a mut V;
+
+    #[cfg_attr(feature = "inline-more", inline)]
+    fn next(&mut self) -> Option<Self::Item> {
+        // Avoid `Option::map` because it bloats LLVM IR.
+        match self.inner.next() {
+            Some((_, v)) => Some(v),
+            None => None,
+        }
+    }
+    #[cfg_attr(feature = "inline-more", inline)]
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        self.inner.size_hint()
+    }
+}
+
+impl<'a, K, V> DoubleEndedIterator for ValuesMut<'a, K, V> {
+    fn next_back(&mut self) -> Option<Self::Item> {
+        match self.inner.next_back() {
+            None => None,
+            Some((_, v)) => Some(v),
+        }
+    }
+}
+
+impl<K, V> ExactSizeIterator for ValuesMut<'_, K, V> {
+    #[cfg_attr(feature = "inline-more", inline)]
+    fn len(&self) -> usize {
+        self.inner.len()
+    }
+}
+
+impl<K, V> FusedIterator for ValuesMut<'_, K, V> {}
 
 #[cfg(test)]
 mod test {
@@ -259,16 +439,15 @@ mod test {
         cache.put(3, 3);
         cache.put(4, 4);
         cache.put(5, 5);
+        cache.put(6, 6);
 
-        assert_eq!(cache.evict_list.len, 5);
-        assert_eq!(cache.items.len(), 5);
+        assert_eq!(cache.len(), 5);
 
-        let v = cache.get_mut(&1).unwrap();
+        assert_eq!(None, cache.get(&1));
+
+        let v = cache.get_mut(&2).unwrap();
         *v = 5;
-        assert_eq!(5, *cache.get(&1).unwrap());
-
-        let v = cache.get(&2).unwrap();
-        assert_eq!(2, *v);
+        assert_eq!(5, *cache.get(&2).unwrap());
 
         let v = cache.get(&3).unwrap();
         assert_eq!(3, *v);
@@ -279,12 +458,25 @@ mod test {
         let v = cache.get(&5).unwrap();
         assert_eq!(5, *v);
 
-        let r1 = cache.remove(&2).unwrap();
-        assert_eq!(r1, 2);
+        let v = cache.get(&6).unwrap();
+        assert_eq!(6, *v);
 
         let oldest = cache.get_oldest().unwrap();
-        assert_eq!(oldest, (&1, &5));
+        assert_eq!(oldest, (&2, &5));
         let oldest = cache.remove_oldest().unwrap();
-        assert_eq!(oldest, (1, 5));
+        assert_eq!(oldest, (2, 5));
+
+        assert_eq!(cache.len(), 4);
+
+        let v = cache.remove(&3).unwrap();
+        assert_eq!(v, 3);
+        assert_eq!(cache.len(), 3);
+
+        let v = cache.peek(&4).unwrap();
+        assert_eq!(*v, 4);
+
+        let v = cache.peek_mut(&4).unwrap();
+        *v = 2;
+        assert_eq!(cache.get(&4), Some(&2));
     }
 }

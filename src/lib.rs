@@ -9,10 +9,14 @@ mod simple_lru;
 
 pub use simple_lru::SimpleLRU;
 
+use alloc::boxed::Box;
 use alloc::vec::Vec;
 use core::borrow::Borrow;
-use core::fmt::{Display, Formatter};
+use core::fmt::{Debug, Display, Formatter};
 use core::hash::{Hash, Hasher};
+use core::iter::FusedIterator;
+use core::marker::PhantomData;
+use core::mem;
 use core::ptr::NonNull;
 
 /// `LRUCache` is the interface for simple LRU cache.
@@ -98,6 +102,15 @@ struct Entry<K, V> {
     next: Option<NonNull<Entry<K, V>>>,
 }
 
+impl<K: Debug, V: Debug> Debug for Entry<K, V> {
+    fn fmt(&self, f: &mut Formatter<'_>) -> core::fmt::Result {
+        f.debug_tuple("Entry")
+            .field(&self.key)
+            .field(&self.val)
+            .finish()
+    }
+}
+
 impl<K, V> Entry<K, V> {
     fn new(key: K, val: V) -> Self {
         Self {
@@ -117,6 +130,7 @@ struct EntryLinkedList<K, V> {
     head: Option<NonNull<Entry<K, V>>>,
     tail: Option<NonNull<Entry<K, V>>>,
     len: usize,
+    marker: PhantomData<Box<Entry<K, V>>>,
 }
 
 impl<K, V> Default for EntryLinkedList<K, V> {
@@ -125,7 +139,14 @@ impl<K, V> Default for EntryLinkedList<K, V> {
             head: None,
             tail: None,
             len: 0,
+            marker: PhantomData,
         }
+    }
+}
+
+impl<K: Debug, V: Debug> Debug for EntryLinkedList<K, V> {
+    fn fmt(&self, f: &mut Formatter<'_>) -> core::fmt::Result {
+        f.debug_list().entries(self).finish()
     }
 }
 
@@ -179,6 +200,42 @@ impl<K, V> EntryLinkedList<K, V> {
         }
     }
 
+    fn pop_front(&mut self) -> Option<(K, V)> {
+        // This method takes care not to create mutable references to whole nodes,
+        // to maintain validity of aliasing pointers into `element`.
+        self.head.map(|ent| unsafe {
+            let ent = Box::from_raw(ent.as_ptr());
+            self.head = ent.next;
+
+            match self.head {
+                None => self.tail = None,
+                // Not creating new mutable (unique!) references overlapping `element`.
+                Some(head) => (*head.as_ptr()).prev = None,
+            }
+
+            self.len -= 1;
+            (ent.key, ent.val)
+        })
+    }
+
+    fn pop_back(&mut self) -> Option<(K, V)> {
+        // This method takes care not to create mutable references to whole nodes,
+        // to maintain validity of aliasing pointers into `element`.
+        self.tail.map(|ent| unsafe {
+            let ent = Box::from_raw(ent.as_ptr());
+            self.tail = ent.prev;
+
+            match self.tail {
+                None => self.head = None,
+                // Not creating new mutable (unique!) references overlapping `element`.
+                Some(tail) => (*tail.as_ptr()).next = None,
+            }
+
+            self.len -= 1;
+            (ent.key, ent.val)
+        })
+    }
+
     fn back(&self) -> Option<&K> {
         unsafe { self.tail.as_ref().map(|ent| &ent.as_ref().key) }
     }
@@ -204,7 +261,246 @@ impl<K, V> EntryLinkedList<K, V> {
     fn clear(&mut self) {
         *self = Self::new();
     }
+
+    fn iter(&self) -> Iter<'_, K, V> {
+        Iter {
+            head: self.head,
+            tail: self.tail,
+            len: self.len,
+            marker: PhantomData,
+        }
+    }
+
+    fn iter_mut(&mut self) -> IterMut<'_, K, V> {
+        IterMut {
+            head: self.head,
+            tail: self.tail,
+            len: self.len,
+            marker: PhantomData,
+        }
+    }
 }
+
+impl<K, V> IntoIterator for EntryLinkedList<K, V> {
+    type Item = (K, V);
+    type IntoIter = IntoIter<K, V>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        IntoIter { list: self }
+    }
+}
+
+impl<'a, K, V> IntoIterator for &'a EntryLinkedList<K, V> {
+    type Item = (&'a K, &'a V);
+    type IntoIter = Iter<'a, K, V>;
+
+    fn into_iter(self) -> Iter<'a, K, V> {
+        self.iter()
+    }
+}
+
+impl<'a, K, V> IntoIterator for &'a mut EntryLinkedList<K, V> {
+    type Item = (&'a K, &'a mut V);
+    type IntoIter = IterMut<'a, K, V>;
+
+    fn into_iter(self) -> IterMut<'a, K, V> {
+        self.iter_mut()
+    }
+}
+
+pub struct IntoIter<K, V> {
+    list: EntryLinkedList<K, V>,
+}
+
+impl<K: Debug, V: Debug> Debug for IntoIter<K, V> {
+    fn fmt(&self, f: &mut Formatter<'_>) -> core::fmt::Result {
+        f.debug_tuple("IntoIter").field(&self.list).finish()
+    }
+}
+
+impl<K, V> Iterator for IntoIter<K, V> {
+    type Item = (K, V);
+
+    #[inline]
+    fn next(&mut self) -> Option<Self::Item> {
+        self.list.pop_front()
+    }
+
+    #[inline]
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        (self.list.len, Some(self.list.len))
+    }
+}
+
+impl<K, V> DoubleEndedIterator for IntoIter<K, V> {
+    #[inline]
+    fn next_back(&mut self) -> Option<Self::Item> {
+        self.list.pop_back()
+    }
+}
+
+impl<K, V> ExactSizeIterator for IntoIter<K, V> {}
+
+impl<K, V> FusedIterator for IntoIter<K, V> {}
+
+pub struct Iter<'a, K: 'a, V: 'a> {
+    head: Option<NonNull<Entry<K, V>>>,
+    tail: Option<NonNull<Entry<K, V>>>,
+    len: usize,
+    marker: PhantomData<&'a Entry<K, V>>,
+}
+
+impl<K: Debug, V: Debug> Debug for Iter<'_, K, V> {
+    fn fmt(&self, f: &mut Formatter<'_>) -> core::fmt::Result {
+        f.debug_tuple("Iter")
+            .field(&*mem::ManuallyDrop::new(EntryLinkedList {
+                head: self.head,
+                tail: self.tail,
+                len: self.len,
+                marker: PhantomData,
+            }))
+            .field(&self.len)
+            .finish()
+    }
+}
+
+impl<K, V> Clone for Iter<'_, K, V> {
+    fn clone(&self) -> Self {
+        Iter { ..*self }
+    }
+}
+
+impl<'a, K, V> Iterator for Iter<'a, K, V> {
+    type Item = (&'a K, &'a V);
+
+    #[inline]
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.len == 0 {
+            None
+        } else {
+            self.head.map(|ent| unsafe {
+                // Need an unbound lifetime to get 'a
+                let ent = &*ent.as_ptr();
+                self.len -= 1;
+                self.head = ent.next;
+                (&(ent.key), &(ent.val))
+            })
+        }
+    }
+
+    #[inline]
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        (self.len, Some(self.len))
+    }
+
+    #[inline]
+    fn last(mut self) -> Option<(&'a K, &'a V)> {
+        self.next_back()
+    }
+}
+
+impl<'a, K, V> DoubleEndedIterator for Iter<'a, K, V> {
+    #[inline]
+    fn next_back(&mut self) -> Option<(&'a K, &'a V)> {
+        if self.len == 0 {
+            None
+        } else {
+            self.tail.map(|ent| unsafe {
+                // Need an unbound lifetime to get 'a
+                let ent = &*ent.as_ptr();
+                self.len -= 1;
+                self.tail = ent.prev;
+                (&(ent.key), &(ent.val))
+            })
+        }
+    }
+}
+
+impl<K, V> FusedIterator for Iter<'_, K, V> {}
+
+impl<K, V> ExactSizeIterator for Iter<'_, K, V> {}
+
+pub struct IterMut<'a, K: 'a, V: 'a> {
+    head: Option<NonNull<Entry<K, V>>>,
+    tail: Option<NonNull<Entry<K, V>>>,
+    len: usize,
+    marker: PhantomData<&'a Entry<K, V>>,
+}
+
+impl<K: Debug, V: Debug> Debug for IterMut<'_, K, V> {
+    fn fmt(&self, f: &mut Formatter<'_>) -> core::fmt::Result {
+        f.debug_tuple("IterMut")
+            .field(&*mem::ManuallyDrop::new(EntryLinkedList {
+                head: self.head,
+                tail: self.tail,
+                len: self.len,
+                marker: PhantomData,
+            }))
+            .field(&self.len)
+            .finish()
+    }
+}
+
+impl<K, V> IterMut<'_, K, V> {
+    fn iter(&self) -> Iter<'_, K, V> {
+        Iter {
+            head: self.head,
+            tail: self.tail,
+            len: self.len,
+            marker: PhantomData,
+        }
+    }
+}
+
+impl<'a, K, V> Iterator for IterMut<'a, K, V> {
+    type Item = (&'a K, &'a mut V);
+
+    #[inline]
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.len == 0 {
+            None
+        } else {
+            self.head.map(|ent| unsafe {
+                // Need an unbound lifetime to get 'a
+                let ent = &mut *ent.as_ptr();
+                self.len -= 1;
+                self.head = ent.next;
+                (&(ent.key), &mut (ent.val))
+            })
+        }
+    }
+
+    #[inline]
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        (self.len, Some(self.len))
+    }
+
+    #[inline]
+    fn last(mut self) -> Option<(&'a K, &'a mut V)> {
+        self.next_back()
+    }
+}
+
+impl<'a, K, V> DoubleEndedIterator for IterMut<'a, K, V> {
+    #[inline]
+    fn next_back(&mut self) -> Option<(&'a K, &'a mut V)> {
+        if self.len == 0 {
+            None
+        } else {
+            self.tail.map(|ent| unsafe {
+                // Need an unbound lifetime to get 'a
+                let ent = &mut *ent.as_ptr();
+                self.len -= 1;
+                self.tail = ent.prev;
+                (&(ent.key), &mut (ent.val))
+            })
+        }
+    }
+}
+
+impl<K, V> FusedIterator for IterMut<'_, K, V> {}
+
+impl<K, V> ExactSizeIterator for IterMut<'_, K, V> {}
 
 /// `DefaultEvictCallback` is a noop evict callback.
 #[derive(Debug, Clone)]
