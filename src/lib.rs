@@ -1,24 +1,19 @@
-// #![no_std]
+#![no_std]
 #![feature(auto_traits)]
 #![feature(negative_impls)]
 
-
-extern crate hashbrown;
 extern crate alloc;
+extern crate hashbrown;
 
 mod simple_lru;
 
 pub use simple_lru::SimpleLRU;
 
 use alloc::vec::Vec;
-use core::hash::{BuildHasher, Hash, Hasher};
-use core::fmt::{Display, Formatter};
 use core::borrow::Borrow;
-use core::marker::PhantomData;
-use core::mem;
+use core::fmt::{Display, Formatter};
+use core::hash::{Hash, Hasher};
 use core::ptr::NonNull;
-use alloc::collections::LinkedList;
-use alloc::boxed::Box;
 
 /// `LRUCache` is the interface for simple LRU cache.
 pub trait LRUCache<K, V> {
@@ -86,9 +81,9 @@ pub auto trait NotKeyRef {}
 impl<K> !NotKeyRef for KeyRef<K> {}
 
 impl<K, D> Borrow<D> for KeyRef<K>
-    where
-        K: Borrow<D>,
-        D: NotKeyRef + ?Sized,
+where
+    K: Borrow<D>,
+    D: NotKeyRef + ?Sized,
 {
     fn borrow(&self) -> &D {
         unsafe { &*self.ptr }.borrow()
@@ -109,14 +104,7 @@ impl<K, V> Entry<K, V> {
             key,
             val,
             prev: None,
-            next: None
-        }
-    }
-
-    fn update_next(&mut self, next: Option<NonNull<Entry<K, V>>>) {
-        match self.next {
-            None => self.next = next,
-            Some(_) => {}
+            next: None,
         }
     }
 }
@@ -136,150 +124,59 @@ impl<K, V> Default for EntryLinkedList<K, V> {
         Self {
             head: None,
             tail: None,
-            len: 0
+            len: 0,
         }
     }
 }
 
 impl<K, V> EntryLinkedList<K, V> {
     fn new() -> Self {
-        // LinkedList::new().clear();
         Self::default()
-    }
-
-    pub(crate) fn push_front(&mut self, ent: Entry<K, V>) {
-        self.push_to_front(Box::new(ent))
-    }
-
-    fn push_to_front(&mut self, mut ent: Box<Entry<K, V>>) {
-        unsafe {
-            ent.next = self.head;
-            ent.prev = None;
-            let ent = Some(Box::leak(ent).into());
-
-            match self.head {
-                None => self.tail = ent,
-                Some(head) => (*head.as_ptr()).prev = ent,
-            }
-
-            self.head = ent;
-            self.len += 1;
-        }
-    }
-
-    fn push_to_front_nonnull(&mut self, mut ent: NonNull<Entry<K, V>>) {
-        unsafe {
-            (*ent.as_ptr()).next = self.head;
-            (*ent.as_ptr()).prev = None;
-            // let ent = Some(Box::leak(ent).into());
-
-            match self.head {
-                None => self.tail = Some(ent),
-                Some(head) => (*head.as_ptr()).prev = Some(ent),
-            }
-
-            self.head = Some(ent);
-            self.len += 1;
-        }
-    }
-
-    pub(crate) fn push_back(&mut self, ent: Entry<K, V>) {
-        self.push_to_back(Box::new(ent))
-    }
-
-    fn push_to_back(&mut self, mut ent: Box<Entry<K, V>>) {
-        unsafe {
-            ent.prev = self.tail;
-            ent.next = None;
-            let ent = Some(Box::leak(ent).into());
-
-            match self.tail {
-                None => self.head = ent,
-                Some(tail) => (*tail.as_ptr()).next = ent,
-            }
-
-            self.tail = ent;
-            self.len += 1;
-        }
     }
 
     /// `move_to_front` moves `ent` to the front of `EntryLinkedList`.
     /// If `ent` is not an element of the list, the list is not modified.
     /// The element must not be nil.
-    fn move_to_front(&mut self, mut ent: NonNull<Entry<K, V>>) {
+    fn move_to_front(&mut self, ent: *mut Entry<K, V>) {
         self.detach(ent);
         self.attach(ent);
     }
 
-    fn detach_tail(&mut self) {
-        match self.tail {
-            None => return,
-            Some(tail) => {
-                self.len -= 1;
+    fn detach(&mut self, ent: *mut Entry<K, V>) {
+        unsafe {
+            // Not creating new mutable (unique!) references overlapping `element`.
+            match (*ent).prev {
+                Some(prev) => (*prev.as_ptr()).next = (*ent).next,
+                // this node is the head node
+                None => self.head = (*ent).next,
+            };
 
-                let tail_ptr = tail.as_ptr();
-                unsafe {
-                    if let Some(prev) = (*tail_ptr).prev {
-                        (*prev.as_ptr()).next = (*tail_ptr).next;
-                    }
-
-                    if let Some(next) = (*tail_ptr).next {
-                        (*next.as_ptr()).prev = (*tail_ptr).prev;
-                    }
-                }
-            }
+            match (*ent).next {
+                Some(next) => (*next.as_ptr()).prev = (*ent).prev,
+                // this node is the tail node
+                None => self.tail = (*ent).prev,
+            };
+            self.len -= 1;
         }
     }
-
-    fn detach(&mut self, mut ent: NonNull<Entry<K, V>>) {
-        let ent = unsafe { ent.as_mut() }; // this one is ours now, we can create an &mut.
-
-        // Not creating new mutable (unique!) references overlapping `element`.
-        match ent.prev {
-            Some(prev) => unsafe { (*prev.as_ptr()).next = ent.next },
-            // this node is the head node
-            None => self.head = ent.next,
-        };
-
-        match ent.next {
-            Some(next) => unsafe { (*next.as_ptr()).prev = ent.prev },
-            // this node is the tail node
-            None => self.tail = ent.prev,
-        };
-
-        self.len -= 1;
-    }
-
-    // remove entry
-    // fn detach(&mut self, ent: *mut Entry<K, V>) {
-    //     self.len -= 1;
-    //     unsafe {
-    //         // detach from linked list
-    //         if let Some(prev) = (*ent).prev {
-    //             (*prev.as_ptr()).next = (*ent).next;
-    //         }
-    //
-    //         if let Some(next) = (*ent).next {
-    //             (*next.as_ptr()).prev = (*ent).prev;
-    //         }
-    //     }
-    // }
 
     // move entry to front
-    fn attach(&mut self, mut ent: NonNull<Entry<K, V>>) {
-        let ent_ptr = ent.as_ptr();
+    fn attach(&mut self, mut ent: *mut Entry<K, V>) {
         unsafe {
-            (*ent_ptr).next = self.head;
-            (*ent_ptr).prev = None;
+            (*ent).next = self.head;
+            (*ent).prev = None;
+
+            let node = Some(ent.as_mut().unwrap().into());
 
             match self.head {
-                None => self.tail.insert(NonNull::new_unchecked(ent_ptr)),
-                Some(head) => (*head.as_ptr()).prev.insert(NonNull::new_unchecked(ent_ptr)),
-            };
-        }
+                None => self.tail = node,
+                // Not creating new mutable (unique!) references overlapping `element`.
+                Some(head) => (*head.as_ptr()).prev = node,
+            }
 
-        self.head = Some(ent);
-        self.len += 1;
+            self.head = node;
+            self.len += 1;
+        }
     }
 
     fn back(&self) -> Option<&K> {
