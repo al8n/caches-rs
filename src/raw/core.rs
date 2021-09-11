@@ -1,11 +1,21 @@
 use crate::raw::ll::{Entry, EntryLinkedList, KeyRef};
+#[cfg(feature = "nightly")]
+use crate::raw::NotKeyRef;
+
 use alloc::boxed::Box;
 use core::borrow::Borrow;
 use core::hash::{BuildHasher, Hash};
 use core::mem;
 use core::ptr::drop_in_place;
-use hashbrown::hash_map::DefaultHashBuilder;
-use hashbrown::HashMap;
+
+#[cfg(feature = "hashbrown")]
+use hashbrown::{hash_map::DefaultHashBuilder, HashMap, HashSet};
+
+#[cfg(not(feature = "hashbrown"))]
+use std::collections::{hash_map::DefaultHasher as DefaultHashBuilder, HashMap, HashSet};
+
+use alloc::collections::{BTreeMap, BTreeSet, BinaryHeap, LinkedList, VecDeque};
+use alloc::vec::Vec;
 
 pub struct RawLRU<K, V, E = DefaultEvictCallback, S = DefaultHashBuilder> {
     pub(crate) size: usize,
@@ -301,7 +311,86 @@ impl<K: Hash + Eq, V, E: OnEvictCallback, S: BuildHasher> RawLRU<K, V, E, S> {
     }
 }
 
-impl<K: Hash + Eq, V> RawLRU<K, V, DefaultEvictCallback, DefaultHashBuilder> {
+#[cfg(feature = "nightly")]
+impl<K: Hash + Eq + NotKeyRef + Clone, V: Clone> From<&[(K, V)]> for RawLRU<K, V> {
+    fn from(vals: &[(K, V)]) -> Self {
+        Self::from(vals.to_vec())
+    }
+}
+
+#[cfg(feature = "nightly")]
+impl<K: Hash + Eq + NotKeyRef + Clone, V: Clone> From<&mut [(K, V)]> for RawLRU<K, V> {
+    fn from(vals: &mut [(K, V)]) -> Self {
+        Self::from(vals.to_vec())
+    }
+}
+
+#[cfg(not(feature = "nightly"))]
+impl<K: Hash + Eq + Clone, V: Clone> From<&[(K, V)]> for RawLRU<K, V> {
+    fn from(vals: &[(K, V)]) -> Self {
+        Self::from(vals.to_vec())
+    }
+}
+
+#[cfg(not(feature = "nightly"))]
+impl<K: Hash + Eq + Clone, V: Clone> From<&mut [(K, V)]> for RawLRU<K, V> {
+    fn from(vals: &mut [(K, V)]) -> Self {
+        Self::from(vals.to_vec())
+    }
+}
+
+impl<K: Hash + Eq, V, const N: usize> From<[(K, V); N]> for RawLRU<K, V> {
+    fn from(vals: [(K, V); N]) -> Self {
+        let mut this = Self::new(vals.len());
+        for (k, v) in vals {
+            this.put(k, v);
+        }
+        this
+    }
+}
+
+macro_rules! impl_from_collections {
+    ($($t:ty),*) => {
+        $(
+        #[cfg(feature = "nightly")]
+        impl<K: Hash + Eq + NotKeyRef, V> From<$t> for RawLRU<K, V> {
+            fn from(vals: $t) -> Self {
+                let mut this = Self::new(vals.len());
+                for (k, v) in vals {
+                    if !this.contains(&k) {
+                        this.put(k, v);
+                    }
+                }
+                this
+            }
+        }
+        #[cfg(not(feature = "nightly"))]
+        impl<K: Hash + Eq, V> From<$t> for RawLRU<K, V>
+        {
+            fn from(vals: $t) -> Self {
+                let mut this = Self::new(vals.len());
+                for (k, v) in vals {
+                    this.put(k, v);
+                }
+                this
+            }
+        }
+        )*
+    }
+}
+
+impl_from_collections!(
+    Vec<(K, V)>,
+    VecDeque<(K, V)>,
+    LinkedList<(K, V)>,
+    HashSet<(K, V)>,
+    BTreeSet<(K,V)>,
+    BinaryHeap<(K, V)>,
+    HashMap<K, V>,
+    BTreeMap<K, V>
+);
+
+impl<K: Hash + Eq, V> RawLRU<K, V> {
     pub fn new(size: usize) -> Self {
         Self::new_in(size, HashMap::with_capacity(size), None)
     }
@@ -329,15 +418,6 @@ impl<K, V, E, S> Drop for RawLRU<K, V, E, S> {
             drop_in_place(ent.key.as_mut_ptr());
             drop_in_place(ent.val.as_mut_ptr());
         });
-
-        // unsafe {self.evict_list.drop()}
-        // // We rebox the head/tail, and because these are maybe-uninit
-        // // they do not have the absent k/v dropped.
-        // unsafe {
-        //
-        //     let _head = *Box::from_raw(self.head);
-        //     let _tail = *Box::from_raw(self.tail);
-        // }
     }
 }
 

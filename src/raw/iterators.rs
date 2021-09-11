@@ -104,6 +104,18 @@ impl<'a, K: Hash + Eq, V, E: OnEvictCallback, S: BuildHasher> IntoIterator
     }
 }
 
+impl<K: Hash + Eq, V> FromIterator<(K, V)> for RawLRU<K, V> {
+    fn from_iter<T: IntoIterator<Item = (K, V)>>(iter: T) -> Self {
+        let iter = iter.into_iter();
+
+        let mut this = Self::new(iter.size_hint().0);
+        iter.for_each(|(k, v)| {
+            this.put(k, v);
+        });
+        this
+    }
+}
+
 pub struct Keys<'a, K: 'a, V: 'a> {
     inner: Iter<'a, K, V>,
 }

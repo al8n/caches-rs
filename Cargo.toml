@@ -4,6 +4,9 @@ version = "0.1.0"
 edition = "2018"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+[features]
+default = ["hashbrown"]
+nightly = ["hashbrown", "hashbrown/nightly"]
 
 [dependencies]
-hashbrown = "0.11.2"
+hashbrown = {version = "0.11.2", optional = true}

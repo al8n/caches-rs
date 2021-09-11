@@ -4,15 +4,32 @@ mod ll;
 
 pub use self::core::{OnEvictCallback, RawLRU};
 pub use self::ll::KeyRef;
+
+#[cfg(feature = "nightly")]
+pub use self::ll::NotKeyRef;
+
 pub use iterators::{
     IntoIter, Iter, IterMut, Keys, ReversedIter, ReversedIterMut, ReversedKeys, ReversedValues,
     ReversedValuesMut, Values, ValuesMut,
 };
 
+/// An intermediate trait for specialization of `Extend`.
+#[doc(hidden)]
+trait SpecExtend<I: IntoIterator> {
+    /// Extends `self` with the contents of the given iterator.
+    fn spec_extend(&mut self, iter: I);
+}
+
 #[cfg(test)]
 mod test {
     use super::*;
     use alloc::string::ToString;
+    #[cfg(feature = "hashbrown")]
+    use hashbrown::{HashMap, HashSet};
+    use std::collections::{BTreeMap, BTreeSet, BinaryHeap};
+    #[cfg(not(feature = "hashbrown"))]
+    use std::collections::{HashMap, HashSet};
+    use std::vec::Vec;
 
     #[test]
     fn test_simple_lru_copy_key_value() {
@@ -87,6 +104,62 @@ mod test {
 
         let v = cache.get_mut(&2).unwrap();
         *v = "bb".to_string();
+    }
+
+    #[test]
+    fn test_from_maps() {
+        let mut map = HashMap::new();
+        map.insert(1, 0);
+        map.insert(2, 0);
+        map.insert(3, 0);
+        let cache = RawLRU::from(map);
+        cache.iter().for_each(|(k, v)| {
+            assert!(cache.contains(k));
+        });
+
+        let mut map = BTreeMap::new();
+        map.insert(1, 0);
+        map.insert(2, 0);
+        map.insert(3, 0);
+        let cache = RawLRU::from(map);
+        cache.iter().for_each(|(k, v)| {
+            assert!(cache.contains(k));
+        });
+    }
+
+    #[test]
+    fn test_from_iters() {
+        let mut iter = Vec::new();
+        iter.push((1, 0));
+        iter.push((2, 0));
+        iter.push((3, 0));
+        let cache = RawLRU::from(iter);
+        cache.iter().for_each(|(k, v)| {
+            assert!(cache.contains(k));
+        });
+
+        let cache = RawLRU::from(&*[(1, 0), (2, 0), (3, 0)].to_vec());
+        cache.iter().for_each(|(k, v)| {
+            assert!(cache.contains(k));
+        });
+
+        let mut iter = HashSet::new();
+        iter.insert((1, 0));
+        iter.insert((2, 0));
+        iter.insert((3, 0));
+        let cache = RawLRU::from(iter);
+        cache.iter().for_each(|(k, v)| {
+            assert!(cache.contains(k));
+        });
+
+        let mut iter = BTreeSet::new();
+        iter.insert((1, 0));
+        iter.insert((2, 0));
+        iter.insert((3, 0));
+        let cache = RawLRU::from(iter);
+        cache.iter().for_each(|(k, v)| {
+            assert!(cache.contains(k));
+        });
     }
 
     #[test]

@@ -1,3 +1,4 @@
+use crate::raw::SpecExtend;
 use alloc::boxed::Box;
 use core::borrow::Borrow;
 use core::fmt::{Debug, Formatter};
@@ -31,10 +32,14 @@ impl<K: PartialEq> PartialEq for KeyRef<K> {
 
 impl<K: Eq> Eq for KeyRef<K> {}
 
+#[cfg(feature = "nightly")]
+#[doc(hidden)]
 pub auto trait NotKeyRef {}
 
+#[cfg(feature = "nightly")]
 impl<K> !NotKeyRef for KeyRef<K> {}
 
+#[cfg(feature = "nightly")]
 impl<K, D> Borrow<D> for KeyRef<K>
 where
     K: Borrow<D>,
@@ -42,6 +47,13 @@ where
 {
     fn borrow(&self) -> &D {
         unsafe { &*self.ptr }.borrow()
+    }
+}
+
+#[cfg(not(feature = "nightly"))]
+impl<K> Borrow<K> for KeyRef<K> {
+    fn borrow(&self) -> &K {
+        unsafe { &*self.ptr }
     }
 }
 
@@ -373,11 +385,6 @@ impl<K, V> Extend<Entry<K, V>> for EntryLinkedList<K, V> {
     fn extend<I: IntoIterator<Item = Entry<K, V>>>(&mut self, iter: I) {
         <Self as SpecExtend<I>>::spec_extend(self, iter);
     }
-
-    // #[inline]
-    // fn extend_one(&mut self, elem: Entry<K, V>) {
-    //     self.push_back(Box::new(elem));
-    // }
 }
 
 impl<K, V, I: IntoIterator<Item = Entry<K, V>>> SpecExtend<I> for EntryLinkedList<K, V> {
@@ -385,13 +392,6 @@ impl<K, V, I: IntoIterator<Item = Entry<K, V>>> SpecExtend<I> for EntryLinkedLis
         iter.into_iter()
             .for_each(move |elt| self.push_back(Box::new(elt)));
     }
-}
-
-/// An intermediate trait for specialization of `Extend`.
-#[doc(hidden)]
-trait SpecExtend<I: IntoIterator> {
-    /// Extends `self` with the contents of the given iterator.
-    fn spec_extend(&mut self, iter: I);
 }
 
 impl<K, V> SpecExtend<EntryLinkedList<K, V>> for EntryLinkedList<K, V> {

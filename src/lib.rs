@@ -1,12 +1,18 @@
 #![no_std]
-#![feature(auto_traits)]
-#![feature(negative_impls)]
+#![cfg_attr(feature = "nightly", feature(negative_impls, auto_traits))]
 #[deny(missing_docs)]
 extern crate alloc;
+#[cfg(feature = "hashbrown")]
 extern crate hashbrown;
+
+#[cfg(any(test, not(feature = "hashbrown")))]
+extern crate std;
 
 mod lru;
 mod raw;
+
+#[macro_use]
+mod macros;
 
 pub use raw::{
     IntoIter, Iter, IterMut, Keys, OnEvictCallback, RawLRU, ReversedIter, ReversedIterMut,
