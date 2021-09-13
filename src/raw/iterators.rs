@@ -6,10 +6,10 @@ use core::mem;
 use core::ptr::NonNull;
 
 use crate::raw::core::RawLRU;
-use crate::raw::ll::{Entry, EntryLinkedList};
+use crate::raw::ll::{EntryNode, EntryNodeLinkedList};
 use crate::OnEvictCallback;
 
-impl<K: Hash + Eq, V, E: OnEvictCallback, S: BuildHasher> RawLRU<K, V, E, S> {
+impl<'a, K: Hash + Eq, V, E, S: BuildHasher> RawLRU<'a, K, V, E, S> {
     /// `iter` returns an iter of the key-value pairs in the cache, from newest to oldest
     pub fn iter(&self) -> Iter<'_, K, V> {
         self.evict_list.iter()
@@ -73,18 +73,18 @@ impl<K: Hash + Eq, V, E: OnEvictCallback, S: BuildHasher> RawLRU<K, V, E, S> {
     }
 }
 
-impl<K: Hash + Eq, V, E: OnEvictCallback, S: BuildHasher> IntoIterator for RawLRU<K, V, E, S> {
+impl<'a, K: Hash + Eq, V, E: OnEvictCallback, S: BuildHasher> IntoIterator
+    for RawLRU<'a, K, V, E, S>
+{
     type Item = (K, V);
-    type IntoIter = RawLRUIntoIter<K, V, E, S>;
+    type IntoIter = RawLRUIntoIter<'a, K, V, E, S>;
 
     fn into_iter(self) -> Self::IntoIter {
         RawLRUIntoIter { list: self }
     }
 }
 
-impl<'a, K: Hash + Eq, V, E: OnEvictCallback, S: BuildHasher> IntoIterator
-    for &'a RawLRU<K, V, E, S>
-{
+impl<'a, K: Hash + Eq, V, E, S: BuildHasher> IntoIterator for &'a RawLRU<'a, K, V, E, S> {
     type Item = (&'a K, &'a V);
     type IntoIter = Iter<'a, K, V>;
 
@@ -93,9 +93,7 @@ impl<'a, K: Hash + Eq, V, E: OnEvictCallback, S: BuildHasher> IntoIterator
     }
 }
 
-impl<'a, K: Hash + Eq, V, E: OnEvictCallback, S: BuildHasher> IntoIterator
-    for &'a mut RawLRU<K, V, E, S>
-{
+impl<'a, K: Hash + Eq, V, E, S: BuildHasher> IntoIterator for &'a mut RawLRU<'a, K, V, E, S> {
     type Item = (&'a K, &'a mut V);
     type IntoIter = IterMut<'a, K, V>;
 
@@ -104,7 +102,7 @@ impl<'a, K: Hash + Eq, V, E: OnEvictCallback, S: BuildHasher> IntoIterator
     }
 }
 
-impl<K: Hash + Eq, V> FromIterator<(K, V)> for RawLRU<K, V> {
+impl<'a, K: Hash + Eq, V> FromIterator<(K, V)> for RawLRU<'a, K, V> {
     fn from_iter<T: IntoIterator<Item = (K, V)>>(iter: T) -> Self {
         let iter = iter.into_iter();
 
@@ -117,7 +115,7 @@ impl<K: Hash + Eq, V> FromIterator<(K, V)> for RawLRU<K, V> {
 }
 
 pub struct Keys<'a, K: 'a, V: 'a> {
-    inner: Iter<'a, K, V>,
+    pub(crate) inner: Iter<'a, K, V>,
 }
 
 impl<K, V> Clone for Keys<'_, K, V> {
@@ -129,7 +127,7 @@ impl<K, V> Clone for Keys<'_, K, V> {
     }
 }
 
-impl<K: Debug, V> Debug for Keys<'_, K, V> {
+impl<'a, K: Debug, V> Debug for Keys<'_, K, V> {
     fn fmt(&self, f: &mut Formatter<'_>) -> core::fmt::Result {
         f.debug_list().entries(self.clone()).finish()
     }
@@ -168,7 +166,7 @@ impl<K, V> ExactSizeIterator for Keys<'_, K, V> {
 impl<K, V> FusedIterator for Keys<'_, K, V> {}
 
 pub struct ReversedKeys<'a, K: 'a, V: 'a> {
-    inner: ReversedIter<'a, K, V>,
+    pub(crate) inner: ReversedIter<'a, K, V>,
 }
 
 impl<K, V> Clone for ReversedKeys<'_, K, V> {
@@ -180,7 +178,7 @@ impl<K, V> Clone for ReversedKeys<'_, K, V> {
     }
 }
 
-impl<K: Debug, V> Debug for ReversedKeys<'_, K, V> {
+impl<'a, K: Debug, V> Debug for ReversedKeys<'_, K, V> {
     fn fmt(&self, f: &mut Formatter<'_>) -> core::fmt::Result {
         f.debug_list().entries(self.clone()).finish()
     }
@@ -219,7 +217,7 @@ impl<K, V> ExactSizeIterator for ReversedKeys<'_, K, V> {
 impl<K, V> FusedIterator for ReversedKeys<'_, K, V> {}
 
 pub struct Values<'a, K: 'a, V: 'a> {
-    inner: Iter<'a, K, V>,
+    pub(crate) inner: Iter<'a, K, V>,
 }
 
 impl<K, V> Clone for Values<'_, K, V> {
@@ -230,7 +228,7 @@ impl<K, V> Clone for Values<'_, K, V> {
     }
 }
 
-impl<K: Debug, V: Debug> Debug for Values<'_, K, V> {
+impl<'a, K: Debug, V: Debug> Debug for Values<'_, K, V> {
     fn fmt(&self, f: &mut Formatter<'_>) -> core::fmt::Result {
         f.debug_list().entries(self.clone()).finish()
     }
@@ -269,7 +267,7 @@ impl<K, V> ExactSizeIterator for Values<'_, K, V> {
 impl<K, V> FusedIterator for Values<'_, K, V> {}
 
 pub struct ReversedValues<'a, K: 'a, V: 'a> {
-    inner: ReversedIter<'a, K, V>,
+    pub(crate) inner: ReversedIter<'a, K, V>,
 }
 
 impl<K, V> Clone for ReversedValues<'_, K, V> {
@@ -280,7 +278,7 @@ impl<K, V> Clone for ReversedValues<'_, K, V> {
     }
 }
 
-impl<K: Debug, V: Debug> Debug for ReversedValues<'_, K, V> {
+impl<'a, K: Debug, V: Debug> Debug for ReversedValues<'_, K, V> {
     fn fmt(&self, f: &mut Formatter<'_>) -> core::fmt::Result {
         f.debug_list().entries(self.clone()).finish()
     }
@@ -319,10 +317,10 @@ impl<K, V> ExactSizeIterator for ReversedValues<'_, K, V> {
 impl<K, V> FusedIterator for ReversedValues<'_, K, V> {}
 
 pub struct ValuesMut<'a, K: 'a, V: 'a> {
-    inner: IterMut<'a, K, V>,
+    pub(crate) inner: IterMut<'a, K, V>,
 }
 
-impl<K: Debug, V: Debug> Debug for ValuesMut<'_, K, V> {
+impl<'a, K: Debug, V: Debug> Debug for ValuesMut<'_, K, V> {
     fn fmt(&self, f: &mut Formatter<'_>) -> core::fmt::Result {
         f.debug_list().entries(self.inner.iter()).finish()
     }
@@ -361,10 +359,10 @@ impl<K, V> ExactSizeIterator for ValuesMut<'_, K, V> {
 impl<K, V> FusedIterator for ValuesMut<'_, K, V> {}
 
 pub struct ReversedValuesMut<'a, K: 'a, V: 'a> {
-    inner: ReversedIterMut<'a, K, V>,
+    pub(crate) inner: ReversedIterMut<'a, K, V>,
 }
 
-impl<K: Debug, V: Debug> Debug for ReversedValuesMut<'_, K, V> {
+impl<'a, K: Debug, V: Debug> Debug for ReversedValuesMut<'_, K, V> {
     fn fmt(&self, f: &mut Formatter<'_>) -> core::fmt::Result {
         f.debug_list().entries(self.inner.iter()).finish()
     }
@@ -402,7 +400,7 @@ impl<K, V> ExactSizeIterator for ReversedValuesMut<'_, K, V> {
 
 impl<K, V> FusedIterator for ReversedValuesMut<'_, K, V> {}
 
-impl<K, V> EntryLinkedList<K, V> {
+impl<K, V> EntryNodeLinkedList<K, V> {
     pub(crate) fn iter(&self) -> Iter<'_, K, V> {
         Iter {
             head: self.head,
@@ -421,8 +419,8 @@ impl<K, V> EntryLinkedList<K, V> {
         }
     }
 
-    pub(crate) fn iter_entry(&self) -> IterEntry<'_, K, V> {
-        IterEntry {
+    pub(crate) fn iter_entry(&self) -> IterEntryNode<'_, K, V> {
+        IterEntryNode {
             head: self.head,
             tail: self.tail,
             len: self.len,
@@ -430,8 +428,8 @@ impl<K, V> EntryLinkedList<K, V> {
         }
     }
 
-    pub(crate) fn iter_entry_mut(&mut self) -> IterEntryMut<'_, K, V> {
-        IterEntryMut {
+    pub(crate) fn iter_entry_mut(&mut self) -> IterEntryNodeMut<'_, K, V> {
+        IterEntryNodeMut {
             head: self.head,
             tail: self.tail,
             len: self.len,
@@ -458,15 +456,15 @@ impl<K, V> EntryLinkedList<K, V> {
     }
 }
 
-impl<K, V> FromIterator<Entry<K, V>> for EntryLinkedList<K, V> {
-    fn from_iter<T: IntoIterator<Item = Entry<K, V>>>(iter: T) -> Self {
+impl<K, V> FromIterator<EntryNode<K, V>> for EntryNodeLinkedList<K, V> {
+    fn from_iter<T: IntoIterator<Item = EntryNode<K, V>>>(iter: T) -> Self {
         let mut list = Self::new();
         list.extend(iter);
         list
     }
 }
 
-impl<K, V> IntoIterator for EntryLinkedList<K, V> {
+impl<K, V> IntoIterator for EntryNodeLinkedList<K, V> {
     type Item = (K, V);
     type IntoIter = IntoIter<K, V>;
 
@@ -475,7 +473,7 @@ impl<K, V> IntoIterator for EntryLinkedList<K, V> {
     }
 }
 
-impl<'a, K, V> IntoIterator for &'a EntryLinkedList<K, V> {
+impl<'a, K, V> IntoIterator for &'a EntryNodeLinkedList<K, V> {
     type Item = (&'a K, &'a V);
     type IntoIter = Iter<'a, K, V>;
 
@@ -484,7 +482,7 @@ impl<'a, K, V> IntoIterator for &'a EntryLinkedList<K, V> {
     }
 }
 
-impl<'a, K, V> IntoIterator for &'a mut EntryLinkedList<K, V> {
+impl<'a, K, V> IntoIterator for &'a mut EntryNodeLinkedList<K, V> {
     type Item = (&'a K, &'a mut V);
     type IntoIter = IterMut<'a, K, V>;
 
@@ -494,10 +492,10 @@ impl<'a, K, V> IntoIterator for &'a mut EntryLinkedList<K, V> {
 }
 
 pub struct IntoIter<K, V> {
-    list: EntryLinkedList<K, V>,
+    list: EntryNodeLinkedList<K, V>,
 }
 
-impl<K: Debug, V: Debug> Debug for IntoIter<K, V> {
+impl<'a, K: Debug, V: Debug> Debug for IntoIter<K, V> {
     fn fmt(&self, f: &mut Formatter<'_>) -> core::fmt::Result {
         f.debug_tuple("IntoIter").field(&self.list).finish()
     }
@@ -528,11 +526,11 @@ impl<K, V> ExactSizeIterator for IntoIter<K, V> {}
 
 impl<K, V> FusedIterator for IntoIter<K, V> {}
 
-pub struct RawLRUIntoIter<K, V, E, S> {
-    list: RawLRU<K, V, E, S>,
+pub struct RawLRUIntoIter<'a, K, V, E, S> {
+    list: RawLRU<'a, K, V, E, S>,
 }
 
-impl<K: Debug, V: Debug, E, S> Debug for RawLRUIntoIter<K, V, E, S> {
+impl<'a, K: Debug, V: Debug, E, S> Debug for RawLRUIntoIter<'a, K, V, E, S> {
     fn fmt(&self, f: &mut Formatter<'_>) -> core::fmt::Result {
         f.debug_tuple("RawLRUIntoIter")
             .field(&self.list.evict_list)
@@ -540,7 +538,7 @@ impl<K: Debug, V: Debug, E, S> Debug for RawLRUIntoIter<K, V, E, S> {
     }
 }
 
-impl<K, V, E, S> Iterator for RawLRUIntoIter<K, V, E, S> {
+impl<'a, K, V, E, S> Iterator for RawLRUIntoIter<'a, K, V, E, S> {
     type Item = (K, V);
 
     #[inline]
@@ -554,28 +552,28 @@ impl<K, V, E, S> Iterator for RawLRUIntoIter<K, V, E, S> {
     }
 }
 
-impl<K, V, E, S> DoubleEndedIterator for RawLRUIntoIter<K, V, E, S> {
+impl<'a, K, V, E, S> DoubleEndedIterator for RawLRUIntoIter<'a, K, V, E, S> {
     #[inline]
     fn next_back(&mut self) -> Option<Self::Item> {
         self.list.evict_list.pop_back()
     }
 }
 
-impl<K, V, E, S> ExactSizeIterator for RawLRUIntoIter<K, V, E, S> {}
+impl<'a, K, V, E, S> ExactSizeIterator for RawLRUIntoIter<'a, K, V, E, S> {}
 
-impl<K, V, E, S> FusedIterator for RawLRUIntoIter<K, V, E, S> {}
+impl<'a, K, V, E, S> FusedIterator for RawLRUIntoIter<'a, K, V, E, S> {}
 
 pub struct Iter<'a, K: 'a, V: 'a> {
-    head: Option<NonNull<Entry<K, V>>>,
-    tail: Option<NonNull<Entry<K, V>>>,
-    len: usize,
-    marker: PhantomData<&'a Entry<K, V>>,
+    pub(crate) head: Option<NonNull<EntryNode<K, V>>>,
+    pub(crate) tail: Option<NonNull<EntryNode<K, V>>>,
+    pub(crate) len: usize,
+    pub(crate) marker: PhantomData<&'a EntryNode<K, V>>,
 }
 
-impl<K: Debug, V: Debug> Debug for Iter<'_, K, V> {
+impl<'a, K: Debug, V: Debug> Debug for Iter<'_, K, V> {
     fn fmt(&self, f: &mut Formatter<'_>) -> core::fmt::Result {
         f.debug_tuple("Iter")
-            .field(&*mem::ManuallyDrop::new(EntryLinkedList {
+            .field(&*mem::ManuallyDrop::new(EntryNodeLinkedList {
                 head: self.head,
                 tail: self.tail,
                 len: self.len,
@@ -643,10 +641,10 @@ impl<K, V> FusedIterator for Iter<'_, K, V> {}
 impl<K, V> ExactSizeIterator for Iter<'_, K, V> {}
 
 pub struct ReversedIter<'a, K: 'a, V: 'a> {
-    head: Option<NonNull<Entry<K, V>>>,
-    tail: Option<NonNull<Entry<K, V>>>,
-    len: usize,
-    marker: PhantomData<&'a Entry<K, V>>,
+    pub(crate) head: Option<NonNull<EntryNode<K, V>>>,
+    pub(crate) tail: Option<NonNull<EntryNode<K, V>>>,
+    pub(crate) len: usize,
+    pub(crate) marker: PhantomData<&'a EntryNode<K, V>>,
 }
 
 impl<'a, K, V> Clone for ReversedIter<'a, K, V> {
@@ -655,10 +653,10 @@ impl<'a, K, V> Clone for ReversedIter<'a, K, V> {
     }
 }
 
-impl<K: Debug, V: Debug> Debug for ReversedIter<'_, K, V> {
+impl<'a, K: Debug, V: Debug> Debug for ReversedIter<'_, K, V> {
     fn fmt(&self, f: &mut Formatter<'_>) -> core::fmt::Result {
         f.debug_tuple("ReversedIter")
-            .field(&*mem::ManuallyDrop::new(EntryLinkedList {
+            .field(&*mem::ManuallyDrop::new(EntryNodeLinkedList {
                 head: self.head,
                 tail: self.tail,
                 len: self.len,
@@ -720,16 +718,16 @@ impl<K, V> FusedIterator for ReversedIter<'_, K, V> {}
 impl<K, V> ExactSizeIterator for ReversedIter<'_, K, V> {}
 
 pub struct IterMut<'a, K: 'a, V: 'a> {
-    pub(crate) head: Option<NonNull<Entry<K, V>>>,
-    pub(crate) tail: Option<NonNull<Entry<K, V>>>,
-    len: usize,
-    marker: PhantomData<&'a Entry<K, V>>,
+    pub(crate) head: Option<NonNull<EntryNode<K, V>>>,
+    pub(crate) tail: Option<NonNull<EntryNode<K, V>>>,
+    pub(crate) len: usize,
+    pub(crate) marker: PhantomData<&'a EntryNode<K, V>>,
 }
 
-impl<K: Debug, V: Debug> Debug for IterMut<'_, K, V> {
+impl<'a, K: Debug, V: Debug> Debug for IterMut<'_, K, V> {
     fn fmt(&self, f: &mut Formatter<'_>) -> core::fmt::Result {
         f.debug_tuple("IterMut")
-            .field(&*mem::ManuallyDrop::new(EntryLinkedList {
+            .field(&*mem::ManuallyDrop::new(EntryNodeLinkedList {
                 head: self.head,
                 tail: self.tail,
                 len: self.len,
@@ -801,15 +799,15 @@ impl<K, V> FusedIterator for IterMut<'_, K, V> {}
 
 impl<K, V> ExactSizeIterator for IterMut<'_, K, V> {}
 
-pub(crate) struct IterEntryMut<'a, K: 'a, V: 'a> {
-    head: Option<NonNull<Entry<K, V>>>,
-    tail: Option<NonNull<Entry<K, V>>>,
+pub(crate) struct IterEntryNodeMut<'a, K: 'a, V: 'a> {
+    head: Option<NonNull<EntryNode<K, V>>>,
+    tail: Option<NonNull<EntryNode<K, V>>>,
     len: usize,
-    marker: PhantomData<&'a Entry<K, V>>,
+    marker: PhantomData<&'a EntryNode<K, V>>,
 }
 
-impl<'a, K, V> Iterator for IterEntryMut<'a, K, V> {
-    type Item = &'a mut Entry<K, V>;
+impl<'a, K, V> Iterator for IterEntryNodeMut<'a, K, V> {
+    type Item = &'a mut EntryNode<K, V>;
 
     #[inline]
     fn next(&mut self) -> Option<Self::Item> {
@@ -837,7 +835,7 @@ impl<'a, K, V> Iterator for IterEntryMut<'a, K, V> {
     }
 }
 
-impl<'a, K, V> DoubleEndedIterator for IterEntryMut<'a, K, V> {
+impl<'a, K, V> DoubleEndedIterator for IterEntryNodeMut<'a, K, V> {
     #[inline]
     fn next_back(&mut self) -> Option<Self::Item> {
         if self.len == 0 {
@@ -854,25 +852,25 @@ impl<'a, K, V> DoubleEndedIterator for IterEntryMut<'a, K, V> {
     }
 }
 
-impl<K, V> FusedIterator for IterEntryMut<'_, K, V> {}
+impl<K, V> FusedIterator for IterEntryNodeMut<'_, K, V> {}
 
-impl<K, V> ExactSizeIterator for IterEntryMut<'_, K, V> {}
+impl<K, V> ExactSizeIterator for IterEntryNodeMut<'_, K, V> {}
 
-pub(crate) struct IterEntry<'a, K: 'a, V: 'a> {
-    head: Option<NonNull<Entry<K, V>>>,
-    tail: Option<NonNull<Entry<K, V>>>,
+pub(crate) struct IterEntryNode<'a, K: 'a, V: 'a> {
+    head: Option<NonNull<EntryNode<K, V>>>,
+    tail: Option<NonNull<EntryNode<K, V>>>,
     len: usize,
-    marker: PhantomData<&'a Entry<K, V>>,
+    marker: PhantomData<&'a EntryNode<K, V>>,
 }
 
-impl<K, V> IterEntry<'_, K, V> {
+impl<K, V> IterEntryNode<'_, K, V> {
     pub(crate) fn is_empty(&self) -> bool {
         self.len == 0
     }
 }
 
-impl<'a, K, V> Iterator for IterEntry<'a, K, V> {
-    type Item = &'a Entry<K, V>;
+impl<'a, K, V> Iterator for IterEntryNode<'a, K, V> {
+    type Item = &'a EntryNode<K, V>;
 
     #[inline]
     fn next(&mut self) -> Option<Self::Item> {
@@ -900,7 +898,7 @@ impl<'a, K, V> Iterator for IterEntry<'a, K, V> {
     }
 }
 
-impl<'a, K, V> DoubleEndedIterator for IterEntry<'a, K, V> {
+impl<'a, K, V> DoubleEndedIterator for IterEntryNode<'a, K, V> {
     #[inline]
     fn next_back(&mut self) -> Option<Self::Item> {
         if self.len == 0 {
@@ -917,21 +915,21 @@ impl<'a, K, V> DoubleEndedIterator for IterEntry<'a, K, V> {
     }
 }
 
-impl<K, V> FusedIterator for IterEntry<'_, K, V> {}
+impl<K, V> FusedIterator for IterEntryNode<'_, K, V> {}
 
-impl<K, V> ExactSizeIterator for IterEntry<'_, K, V> {}
+impl<K, V> ExactSizeIterator for IterEntryNode<'_, K, V> {}
 
 pub struct ReversedIterMut<'a, K: 'a, V: 'a> {
-    head: Option<NonNull<Entry<K, V>>>,
-    tail: Option<NonNull<Entry<K, V>>>,
-    len: usize,
-    marker: PhantomData<&'a Entry<K, V>>,
+    pub(crate) head: Option<NonNull<EntryNode<K, V>>>,
+    pub(crate) tail: Option<NonNull<EntryNode<K, V>>>,
+    pub(crate) len: usize,
+    pub(crate) marker: PhantomData<&'a EntryNode<K, V>>,
 }
 
-impl<K: Debug, V: Debug> Debug for ReversedIterMut<'_, K, V> {
+impl<'a, K: Debug, V: Debug> Debug for ReversedIterMut<'_, K, V> {
     fn fmt(&self, f: &mut Formatter<'_>) -> core::fmt::Result {
         f.debug_tuple("ReversedIterMut")
-            .field(&*mem::ManuallyDrop::new(EntryLinkedList {
+            .field(&*mem::ManuallyDrop::new(EntryNodeLinkedList {
                 head: self.head,
                 tail: self.tail,
                 len: self.len,

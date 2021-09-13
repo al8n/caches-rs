@@ -2,7 +2,7 @@ mod core;
 mod iterators;
 mod ll;
 
-pub use self::core::{OnEvictCallback, RawLRU};
+pub use self::core::RawLRU;
 pub use self::ll::KeyRef;
 
 #[cfg(feature = "nightly")]
@@ -23,13 +23,54 @@ trait SpecExtend<I: IntoIterator> {
 #[cfg(test)]
 mod test {
     use super::*;
+    use crate::OnEvictCallback;
+    use alloc::prelude::v1::String;
     use alloc::string::ToString;
     #[cfg(feature = "hashbrown")]
     use hashbrown::{HashMap, HashSet};
-    use std::collections::{BTreeMap, BTreeSet, BinaryHeap};
+    use std::collections::{BTreeMap, BTreeSet};
     #[cfg(not(feature = "hashbrown"))]
     use std::collections::{HashMap, HashSet};
+    use std::sync::atomic::{AtomicU64, Ordering};
     use std::vec::Vec;
+
+    struct EC {
+        ctr: AtomicU64,
+    }
+
+    impl EC {
+        fn new() -> Self {
+            Self {
+                ctr: AtomicU64::new(0),
+            }
+        }
+
+        fn ctr(&self) -> u64 {
+            self.ctr.load(Ordering::SeqCst)
+        }
+    }
+
+    impl OnEvictCallback for EC {
+        fn on_evict<K, V>(&self, key: &K, val: &V) {
+            self.ctr.fetch_add(1, Ordering::SeqCst);
+        }
+    }
+
+    fn str_str_cache<'a>() -> RawLRU<'a, String, String> {
+        let mut cache = RawLRU::new(3);
+        cache.put("a".to_string(), "a".to_string());
+        cache.put("b".to_string(), "b".to_string());
+        cache.put("c".to_string(), "c".to_string());
+        cache
+    }
+
+    fn str_str_ec_cache(ec: &EC) -> RawLRU<String, String, EC> {
+        let mut cache = RawLRU::with_evict_callback(3, ec);
+        cache.put("a".to_string(), "a".to_string());
+        cache.put("b".to_string(), "b".to_string());
+        cache.put("c".to_string(), "c".to_string());
+        cache
+    }
 
     #[test]
     fn test_simple_lru_copy_key_value() {
@@ -69,7 +110,7 @@ mod test {
         assert_eq!(cache.len(), 4);
 
         let v = cache.remove(&3).unwrap();
-        assert_eq!(v, 3);
+        assert_eq!(v, (3, 3));
         assert_eq!(cache.len(), 3);
 
         let v = cache.peek(&4).unwrap();
@@ -169,5 +210,47 @@ mod test {
         cache.put(2, "b".to_string());
         cache.put(3, "c".to_string());
         drop(cache);
+    }
+
+    #[test]
+    fn test_contains() {
+        let mut cache = str_str_cache();
+        assert!(cache.contains(&"a".to_string()));
+        let x = cache.contains_or_put("a".to_string(), "aa".to_string());
+        assert_eq!(x, (None, true));
+        let x = cache.contains_or_put("d".to_string(), "d".to_string());
+        assert_eq!(x, (Some(("a".to_string(), "a".to_string())), false));
+    }
+
+    #[test]
+    fn test_callback() {
+        let ec = EC {
+            ctr: AtomicU64::new(0),
+        };
+
+        let mut cache = RawLRU::with_evict_callback(1, &ec);
+        cache.put(1, "a".to_string());
+        cache.put(2, "b".to_string());
+        cache.put(3, "c".to_string());
+        assert_eq!(ec.ctr.load(Ordering::SeqCst), 2);
+
+        let ec = EC {
+            ctr: AtomicU64::new(0),
+        };
+        let mut cache = RawLRU::with_evict_callback(3, &ec);
+        cache.put(1, "a".to_string());
+        cache.put(2, "b".to_string());
+        cache.put(3, "c".to_string());
+        let evicted = cache.resize(1);
+        assert_eq!(evicted, 2);
+        assert_eq!(ec.ctr.load(Ordering::SeqCst), 2);
+    }
+
+    #[test]
+    fn test_purge() {
+        let ec = EC::new();
+        let mut cache = str_str_ec_cache(&ec);
+        cache.purge();
+        assert_eq!(ec.ctr(), 3);
     }
 }

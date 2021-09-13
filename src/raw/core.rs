@@ -1,7 +1,7 @@
-use crate::raw::ll::{Entry, EntryLinkedList, KeyRef};
+use crate::raw::ll::{EntryNode, EntryNodeLinkedList, KeyRef};
 #[cfg(feature = "nightly")]
 use crate::raw::NotKeyRef;
-
+use crate::{DefaultEvictCallback, DefaultHashBuilder, OnEvictCallback};
 use alloc::boxed::Box;
 use core::borrow::Borrow;
 use core::hash::{BuildHasher, Hash};
@@ -9,44 +9,48 @@ use core::mem;
 use core::ptr::drop_in_place;
 
 #[cfg(feature = "hashbrown")]
-use hashbrown::{hash_map::DefaultHashBuilder, HashMap, HashSet};
+use hashbrown::{HashMap, HashSet};
 
 #[cfg(not(feature = "hashbrown"))]
-use std::collections::{hash_map::DefaultHasher as DefaultHashBuilder, HashMap, HashSet};
+use std::collections::{HashMap, HashSet};
 
 use alloc::collections::{BTreeMap, BTreeSet, BinaryHeap, LinkedList, VecDeque};
 use alloc::vec::Vec;
 
-pub struct RawLRU<K, V, E = DefaultEvictCallback, S = DefaultHashBuilder> {
+pub struct RawLRU<'a, K, V, E = DefaultEvictCallback, S = DefaultHashBuilder> {
     pub(crate) size: usize,
-    pub(crate) evict_list: EntryLinkedList<K, V>,
-    pub(crate) items: HashMap<KeyRef<K>, Box<Entry<K, V>>, S>,
-    pub(crate) on_evict: Option<E>,
+    pub(crate) evict_list: EntryNodeLinkedList<K, V>,
+    pub(crate) items: HashMap<KeyRef<K>, Box<EntryNode<K, V>>, S>,
+    on_evict: Option<&'a E>,
 }
 
-impl<K: Hash + Eq, V, E: OnEvictCallback, S: BuildHasher> RawLRU<K, V, E, S> {
-    pub fn with_callback_and_hasher(size: usize, callback: E, hash_builder: S) -> Self {
-        Self::new_in(
-            size,
-            HashMap::with_capacity_and_hasher(size, hash_builder),
-            Some(callback),
-        )
+impl<'a, K: Clone, V: Clone, E: Clone, S: Clone> Clone for RawLRU<'a, K, V, E, S> {
+    fn clone(&self) -> Self {
+        Self {
+            size: self.size,
+            evict_list: self.evict_list.clone(),
+            items: self.items.clone(),
+            on_evict: self.on_evict.clone(),
+        }
     }
+}
 
+impl<'a, K: Hash + Eq, V, E: OnEvictCallback, S: BuildHasher> RawLRU<'a, K, V, E, S> {
     fn new_in(
         size: usize,
-        items: HashMap<KeyRef<K>, Box<Entry<K, V>>, S>,
-        on_evict: Option<E>,
+        items: HashMap<KeyRef<K>, Box<EntryNode<K, V>>, S>,
+        on_evict: Option<&'a E>,
     ) -> Self {
+        assert_ne!(size, 0, "invalid cache size {}", 0);
         Self {
             size,
-            evict_list: EntryLinkedList::new(),
+            evict_list: EntryNodeLinkedList::new(),
             items,
             on_evict,
         }
     }
 
-    /// `put` puts a value to the cache, returns true if an eviction occurred and
+    /// `put` puts a value to the cache, returns evicted key-value pair if an eviction occurred and
     /// updates the "recently used"-ness of the key.
     ///
     /// ```rust
@@ -59,56 +63,50 @@ impl<K: Hash + Eq, V, E: OnEvictCallback, S: BuildHasher> RawLRU<K, V, E, S> {
     /// let evicted = cache.put("d".to_string(), 1);
     /// assert!(evicted);
     /// ```
-    pub fn put(&mut self, key: K, mut val: V) -> bool {
+    pub fn put(&mut self, key: K, mut val: V) -> Option<(K, V)> {
         // Avoid `Option::map` because it bloats LLVM IR.
         let ent_ptr = self.items.get_mut(&KeyRef::new(&key)).map(|ent| {
-            let ent_ptr: *mut Entry<K, V> = &mut **ent;
+            let ent_ptr: *mut EntryNode<K, V> = &mut **ent;
             ent_ptr
         });
 
         match ent_ptr {
+            // Verify size not exceed
             None => {
-                let evict = self.evict_list.len >= self.size;
-                // Verify size not exceed
-                let mut ent: Box<Entry<K, V>> = if evict {
-                    let old_key = self.evict_list.back().unwrap();
-                    let old_key = KeyRef::new(old_key);
-                    let mut old_ent = self.items.remove(&old_key).unwrap();
+                if self.evict_list.len >= self.size {
+                    let (old_ek, mut old_ev) = self.remove_oldest().unwrap();
+                    let ent = Box::new(EntryNode::new(key, val));
+                    self.put_in(ent);
 
-                    unsafe {
-                        drop_in_place(old_ent.key.as_mut_ptr());
-                        drop_in_place(old_ent.val.as_mut_ptr());
-                    }
-                    old_ent.key = mem::MaybeUninit::new(key);
-                    old_ent.val = mem::MaybeUninit::new(val);
-
-                    let old_ent_ptr: *mut Entry<K, V> = &mut *old_ent;
-                    self.evict_list.detach(old_ent_ptr);
-                    old_ent
+                    unsafe { Some((old_ek, old_ev)) }
                 } else {
-                    Box::new(Entry::new(key, val))
-                };
-
-                let ent_ptr = &mut *ent;
-                self.evict_list.attach(ent_ptr);
-
-                self.items.insert(
-                    KeyRef {
-                        ptr: (*ent_ptr).key.as_ptr(),
-                    },
-                    ent,
-                );
-                evict
+                    let ent = Box::new(EntryNode::new(key, val));
+                    self.put_in(ent);
+                    None
+                }
             }
+            // Update value
             Some(ptr) => {
                 self.evict_list.move_to_front(ptr);
                 // key is in cache, update evict list
                 unsafe {
                     mem::swap(&mut val, &mut (*(*ptr).val.as_mut_ptr()) as &mut V);
                 }
-                false
+                None
             }
         }
+    }
+
+    fn put_in(&mut self, mut ent: Box<EntryNode<K, V>>) {
+        let ent_ptr = &mut *ent;
+        self.evict_list.attach(ent_ptr);
+
+        self.items.insert(
+            KeyRef {
+                ptr: (*ent_ptr).key.as_ptr(),
+            },
+            ent,
+        );
     }
 
     pub fn get<Q>(&mut self, key: &Q) -> Option<&V>
@@ -117,7 +115,7 @@ impl<K: Hash + Eq, V, E: OnEvictCallback, S: BuildHasher> RawLRU<K, V, E, S> {
         Q: Hash + Eq + ?Sized,
     {
         if let Some(ent) = self.items.get_mut(key) {
-            let ent_ptr: *mut Entry<K, V> = &mut **ent;
+            let ent_ptr: *mut EntryNode<K, V> = &mut **ent;
             self.evict_list.move_to_front(ent_ptr);
 
             Some(unsafe { &(*(*ent_ptr).val.as_ptr()) as &V })
@@ -132,7 +130,7 @@ impl<K: Hash + Eq, V, E: OnEvictCallback, S: BuildHasher> RawLRU<K, V, E, S> {
         Q: Hash + Eq + ?Sized,
     {
         if let Some(ent) = self.items.get_mut(key) {
-            let ent_ptr: *mut Entry<K, V> = &mut **ent;
+            let ent_ptr: *mut EntryNode<K, V> = &mut **ent;
             self.evict_list.move_to_front(ent_ptr);
 
             Some(unsafe { &mut (*(*ent_ptr).val.as_mut_ptr()) as &mut V })
@@ -154,9 +152,8 @@ impl<K: Hash + Eq, V, E: OnEvictCallback, S: BuildHasher> RawLRU<K, V, E, S> {
             match self.items.get_mut(&KeyRef::new((*tail).key.as_ptr())) {
                 None => None,
                 Some(ent) => {
-                    let ent_ptr: *mut Entry<K, V> = &mut **ent;
+                    let ent_ptr: *mut EntryNode<K, V> = &mut **ent;
                     self.evict_list.move_to_front(ent_ptr);
-
                     Some((&(*(*ent_ptr).key.as_ptr()), &(*(*ent_ptr).val.as_mut_ptr())))
                 }
             }
@@ -176,7 +173,7 @@ impl<K: Hash + Eq, V, E: OnEvictCallback, S: BuildHasher> RawLRU<K, V, E, S> {
             match self.items.get_mut(&KeyRef::new((*tail).key.as_ptr())) {
                 None => None,
                 Some(ent) => {
-                    let ent_ptr: *mut Entry<K, V> = &mut **ent;
+                    let ent_ptr: *mut EntryNode<K, V> = &mut **ent;
                     self.evict_list.move_to_front(ent_ptr);
 
                     Some((
@@ -192,7 +189,7 @@ impl<K: Hash + Eq, V, E: OnEvictCallback, S: BuildHasher> RawLRU<K, V, E, S> {
     ///
     /// Remove removes the provided key from the cache, returning if the
     /// key was contained.
-    pub fn remove<Q>(&mut self, key: &Q) -> Option<V>
+    pub fn remove<Q>(&mut self, key: &Q) -> Option<(K, V)>
     where
         KeyRef<K>: Borrow<Q>,
         Q: Hash + Eq + ?Sized,
@@ -203,13 +200,12 @@ impl<K: Hash + Eq, V, E: OnEvictCallback, S: BuildHasher> RawLRU<K, V, E, S> {
                 let ent_ptr = Box::leak(ent);
                 self.evict_list.detach(ent_ptr);
 
-                if let Some(on_evict) = &self.on_evict {
-                    unsafe {
-                        on_evict.on_evict(&(*(*ent_ptr).key.as_ptr()), &(*(*ent_ptr).val.as_ptr()));
-                    }
+                // Safety: the key and value must be initialized because
+                // we can get the entry pointer from items.
+                unsafe {
+                    let ent = Box::from_raw(ent_ptr);
+                    Some((ent.key.assume_init(), ent.val.assume_init()))
                 }
-
-                Some(unsafe { Box::from_raw(ent_ptr).val.assume_init() })
             }
         }
     }
@@ -223,12 +219,12 @@ impl<K: Hash + Eq, V, E: OnEvictCallback, S: BuildHasher> RawLRU<K, V, E, S> {
                     let ent_ptr = Box::leak(ent);
                     self.evict_list.detach(ent_ptr);
 
-                    if let Some(on_evict) = &self.on_evict {
-                        on_evict.on_evict(&(*(*ent_ptr).key.as_ptr()), &(*(*ent_ptr).val.as_ptr()));
-                    }
-
+                    // Safety: the key and value must be initialized because
+                    // we can get the entry pointer from items.
                     let ent = Box::from_raw(ent_ptr);
-                    Some((ent.key.assume_init(), ent.val.assume_init()))
+                    let (ek, ev) = (ent.key.assume_init(), ent.val.assume_init());
+                    self.cb(&ek, &ev);
+                    Some((ek, ev))
                 }
             }
         }
@@ -241,6 +237,9 @@ impl<K: Hash + Eq, V, E: OnEvictCallback, S: BuildHasher> RawLRU<K, V, E, S> {
 
     /// `purge` clears the number of items in the cache.
     pub fn purge(&mut self) {
+        for (k, v) in self.iter() {
+            self.cb(k, v)
+        }
         self.evict_list.clear();
         self.items.clear();
     }
@@ -294,52 +293,69 @@ impl<K: Hash + Eq, V, E: OnEvictCallback, S: BuildHasher> RawLRU<K, V, E, S> {
         self.items.contains_key(key)
     }
 
-    /// `resize` resizes cache, returning number evicted.
-    pub fn resize(&mut self, size: usize) -> u64 {
-        if self.len() > size {
-            let delta = self.len() - size;
-            for _ in 0..delta {
-                let _ = self.remove_oldest();
-            }
+    /// `contains_or_put` checks if a key is in the cache without updating the
+    /// recent-ness or deleting it for being stale, and if not, adds the value.
+    /// Returns whether found and whether an eviction occurred.
+    pub fn contains_or_put(&mut self, key: K, val: V) -> (Option<(K, V)>, bool) {
+        if !self.contains(&key) {
+            let ent = self.put(key, val);
+            (ent, false)
+        } else {
+            (None, true)
+        }
+    }
 
-            self.size = size;
+    /// `resize` resizes cache, returning the number of evicted entries.
+    pub fn resize(&mut self, size: usize) -> u64 {
+        let ctr = if self.len() > size {
+            let delta = self.len() - size;
+            (0..delta).for_each(|_| {
+                let _ = self.remove_oldest();
+            });
             delta as u64
         } else {
-            self.size = size;
-            0
+            0u64
+        };
+        self.size = size;
+        ctr
+    }
+
+    #[inline]
+    fn cb(&self, k: &K, v: &V) {
+        if let Some(cb) = self.on_evict {
+            cb.on_evict(k, v)
         }
     }
 }
 
 #[cfg(feature = "nightly")]
-impl<K: Hash + Eq + NotKeyRef + Clone, V: Clone> From<&[(K, V)]> for RawLRU<K, V> {
+impl<'a, K: Hash + Eq + NotKeyRef + Clone, V: Clone> From<&[(K, V)]> for RawLRU<'a, K, V> {
     fn from(vals: &[(K, V)]) -> Self {
         Self::from(vals.to_vec())
     }
 }
 
 #[cfg(feature = "nightly")]
-impl<K: Hash + Eq + NotKeyRef + Clone, V: Clone> From<&mut [(K, V)]> for RawLRU<K, V> {
+impl<'a, K: Hash + Eq + NotKeyRef + Clone, V: Clone> From<&mut [(K, V)]> for RawLRU<'a, K, V> {
     fn from(vals: &mut [(K, V)]) -> Self {
         Self::from(vals.to_vec())
     }
 }
 
-#[cfg(not(feature = "nightly"))]
-impl<K: Hash + Eq + Clone, V: Clone> From<&[(K, V)]> for RawLRU<K, V> {
+impl<'a, K: Hash + Eq + Clone, V: Clone> From<&[(K, V)]> for RawLRU<'a, K, V> {
     fn from(vals: &[(K, V)]) -> Self {
         Self::from(vals.to_vec())
     }
 }
 
-#[cfg(not(feature = "nightly"))]
-impl<K: Hash + Eq + Clone, V: Clone> From<&mut [(K, V)]> for RawLRU<K, V> {
+impl<'a, K: Hash + Eq + Clone, V: Clone> From<&mut [(K, V)]> for RawLRU<'a, K, V> {
     fn from(vals: &mut [(K, V)]) -> Self {
         Self::from(vals.to_vec())
     }
 }
 
-impl<K: Hash + Eq, V, const N: usize> From<[(K, V); N]> for RawLRU<K, V> {
+#[cfg(feature = "nightly")]
+impl<'a, K: Hash + Eq, V, const N: usize> From<[(K, V); N]> for RawLRU<'a, K, V> {
     fn from(vals: [(K, V); N]) -> Self {
         let mut this = Self::new(vals.len());
         for (k, v) in vals {
@@ -352,25 +368,12 @@ impl<K: Hash + Eq, V, const N: usize> From<[(K, V); N]> for RawLRU<K, V> {
 macro_rules! impl_from_collections {
     ($($t:ty),*) => {
         $(
-        #[cfg(feature = "nightly")]
-        impl<K: Hash + Eq + NotKeyRef, V> From<$t> for RawLRU<K, V> {
-            fn from(vals: $t) -> Self {
-                let mut this = Self::new(vals.len());
-                for (k, v) in vals {
-                    if !this.contains(&k) {
-                        this.put(k, v);
-                    }
-                }
-                this
-            }
-        }
-        #[cfg(not(feature = "nightly"))]
-        impl<K: Hash + Eq, V> From<$t> for RawLRU<K, V>
+        impl<'a, K: Hash + Eq, V> From<$t> for RawLRU<'a, K, V>
         {
             fn from(vals: $t) -> Self {
                 let mut this = Self::new(vals.len());
                 for (k, v) in vals {
-                    this.put(k, v);
+                    this.contains_or_put(k, v);
                 }
                 this
             }
@@ -390,13 +393,13 @@ impl_from_collections!(
     BTreeMap<K, V>
 );
 
-impl<K: Hash + Eq, V> RawLRU<K, V> {
+impl<'a, K: Hash + Eq, V> RawLRU<'a, K, V> {
     pub fn new(size: usize) -> Self {
         Self::new_in(size, HashMap::with_capacity(size), None)
     }
 }
 
-impl<K: Hash + Eq, V, S: BuildHasher> RawLRU<K, V, DefaultEvictCallback, S> {
+impl<'a, K: Hash + Eq, V, S: BuildHasher> RawLRU<'a, K, V, DefaultEvictCallback, S> {
     pub fn with_hasher(size: usize, hash_builder: S) -> Self {
         Self::new_in(
             size,
@@ -406,29 +409,17 @@ impl<K: Hash + Eq, V, S: BuildHasher> RawLRU<K, V, DefaultEvictCallback, S> {
     }
 }
 
-impl<K: Hash + Eq, V, E: OnEvictCallback> RawLRU<K, V, E, DefaultHashBuilder> {
-    pub fn with_evict_callback(size: usize, callback: E) -> Self {
-        Self::new_in(size, HashMap::with_capacity(size), Some(callback))
+impl<'a, K: Hash + Eq, V, E: OnEvictCallback> RawLRU<'a, K, V, E, DefaultHashBuilder> {
+    pub fn with_evict_callback(size: usize, cb: &'a E) -> Self {
+        Self::new_in(size, HashMap::with_capacity(size), Some(cb))
     }
 }
 
-impl<K, V, E, S> Drop for RawLRU<K, V, E, S> {
+impl<'a, K, V, E, S> Drop for RawLRU<'a, K, V, E, S> {
     fn drop(&mut self) {
         self.items.values_mut().for_each(|ent| unsafe {
             drop_in_place(ent.key.as_mut_ptr());
             drop_in_place(ent.val.as_mut_ptr());
         });
     }
-}
-
-/// `DefaultEvictCallback` is a noop evict callback.
-#[derive(Debug, Clone)]
-pub struct DefaultEvictCallback;
-
-impl OnEvictCallback for DefaultEvictCallback {
-    fn on_evict<K: Hash + Eq, V>(&self, _: &K, _: &V) {}
-}
-
-pub trait OnEvictCallback {
-    fn on_evict<K: Hash + Eq, V>(&self, key: &K, val: &V);
 }

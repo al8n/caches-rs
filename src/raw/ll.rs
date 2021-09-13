@@ -24,6 +24,7 @@ impl<K: Hash> Hash for KeyRef<K> {
         unsafe { (*self.ptr).hash(state) }
     }
 }
+
 impl<K: PartialEq> PartialEq for KeyRef<K> {
     fn eq(&self, other: &KeyRef<K>) -> bool {
         unsafe { (*self.ptr).eq(&*other.ptr) }
@@ -57,15 +58,15 @@ impl<K> Borrow<K> for KeyRef<K> {
     }
 }
 
-/// `Entry` is used to hold a key-value pair.
-pub(crate) struct Entry<K, V> {
+/// `EntryNode` is used to hold a key-value pair.
+pub(crate) struct EntryNode<K, V> {
     pub(crate) key: MaybeUninit<K>,
     pub(crate) val: MaybeUninit<V>,
-    pub(crate) prev: Option<NonNull<Entry<K, V>>>,
-    pub(crate) next: Option<NonNull<Entry<K, V>>>,
+    pub(crate) prev: Option<NonNull<EntryNode<K, V>>>,
+    pub(crate) next: Option<NonNull<EntryNode<K, V>>>,
 }
 
-impl<K: Clone, V: Clone> Clone for Entry<K, V> {
+impl<K: Clone, V: Clone> Clone for EntryNode<K, V> {
     fn clone(&self) -> Self {
         unsafe {
             Self {
@@ -78,16 +79,16 @@ impl<K: Clone, V: Clone> Clone for Entry<K, V> {
     }
 }
 
-impl<K: Debug, V: Debug> Debug for Entry<K, V> {
+impl<K: Debug, V: Debug> Debug for EntryNode<K, V> {
     fn fmt(&self, f: &mut Formatter<'_>) -> core::fmt::Result {
-        f.debug_tuple("Entry")
+        f.debug_tuple("EntryNode")
             .field(&self.key)
             .field(&self.val)
             .finish()
     }
 }
 
-impl<K, V> Entry<K, V> {
+impl<K, V> EntryNode<K, V> {
     pub(crate) fn new(key: K, val: V) -> Self {
         Self {
             key: MaybeUninit::new(key),
@@ -98,18 +99,18 @@ impl<K, V> Entry<K, V> {
     }
 }
 
-/// `EntryLinkedList` is a double direction linked list.
+/// `EntryNodeLinkedList` is a double direction linked list.
 ///
 /// For LRU, read and write should be O(1), so we need a
 /// double direct linked list.
-pub(crate) struct EntryLinkedList<K, V> {
-    pub(crate) head: Option<NonNull<Entry<K, V>>>,
-    pub(crate) tail: Option<NonNull<Entry<K, V>>>,
+pub(crate) struct EntryNodeLinkedList<K, V> {
+    pub(crate) head: Option<NonNull<EntryNode<K, V>>>,
+    pub(crate) tail: Option<NonNull<EntryNode<K, V>>>,
     pub(crate) len: usize,
-    pub(crate) marker: PhantomData<Box<Entry<K, V>>>,
+    pub(crate) marker: PhantomData<Box<EntryNode<K, V>>>,
 }
 
-impl<K, V> Default for EntryLinkedList<K, V> {
+impl<K, V> Default for EntryNodeLinkedList<K, V> {
     fn default() -> Self {
         Self {
             head: None,
@@ -120,26 +121,26 @@ impl<K, V> Default for EntryLinkedList<K, V> {
     }
 }
 
-impl<K: Debug, V: Debug> Debug for EntryLinkedList<K, V> {
+impl<K: Debug, V: Debug> Debug for EntryNodeLinkedList<K, V> {
     fn fmt(&self, f: &mut Formatter<'_>) -> core::fmt::Result {
         f.debug_list().entries(self).finish()
     }
 }
 
-impl<K, V> EntryLinkedList<K, V> {
+impl<K, V> EntryNodeLinkedList<K, V> {
     pub(crate) fn new() -> Self {
         Self::default()
     }
 
-    /// `move_to_front` moves `ent` to the front of `EntryLinkedList`.
+    /// `move_to_front` moves `ent` to the front of `EntryNodeLinkedList`.
     /// If `ent` is not an element of the list, the list is not modified.
     /// The element must not be nil.
-    pub(crate) fn move_to_front(&mut self, ent: *mut Entry<K, V>) {
+    pub(crate) fn move_to_front(&mut self, ent: *mut EntryNode<K, V>) {
         self.detach(ent);
         self.attach(ent);
     }
 
-    pub(crate) fn detach(&mut self, ent: *mut Entry<K, V>) {
+    pub(crate) fn detach(&mut self, ent: *mut EntryNode<K, V>) {
         unsafe {
             // Not creating new mutable (unique!) references overlapping `element`.
             match (*ent).prev {
@@ -158,7 +159,7 @@ impl<K, V> EntryLinkedList<K, V> {
     }
 
     // move entry to front
-    pub(crate) fn attach(&mut self, mut ent: *mut Entry<K, V>) {
+    pub(crate) fn attach(&mut self, mut ent: *mut EntryNode<K, V>) {
         unsafe {
             (*ent).next = self.head;
             (*ent).prev = None;
@@ -214,7 +215,7 @@ impl<K, V> EntryLinkedList<K, V> {
 
     /// Adds the given node to the back of the list.
     #[inline]
-    pub(crate) fn push_back(&mut self, mut ent: Box<Entry<K, V>>) {
+    pub(crate) fn push_back(&mut self, mut ent: Box<EntryNode<K, V>>) {
         // This method takes care not to create mutable references to whole nodes,
         // to maintain validity of aliasing pointers into `element`.
         unsafe {
@@ -294,7 +295,7 @@ impl<K, V> EntryLinkedList<K, V> {
 
     /// Splits the list into two at the given index. Returns everything after the given index,
     /// including the index.
-    pub fn split_off(&mut self, at: usize) -> EntryLinkedList<K, V> {
+    pub fn split_off(&mut self, at: usize) -> EntryNodeLinkedList<K, V> {
         let len = self.len();
         assert!(at <= len, "Cannot split off at a nonexistent index");
         if at == 0 {
@@ -328,7 +329,7 @@ impl<K, V> EntryLinkedList<K, V> {
     #[inline]
     unsafe fn split_off_after_node(
         &mut self,
-        split_node: Option<NonNull<Entry<K, V>>>,
+        split_node: Option<NonNull<EntryNode<K, V>>>,
         at: usize,
     ) -> Self {
         // The split node is the new tail node of the first part and owns
@@ -344,7 +345,7 @@ impl<K, V> EntryLinkedList<K, V> {
                 second_part_tail = None;
             }
 
-            let second_part = EntryLinkedList {
+            let second_part = EntryNodeLinkedList {
                 head: second_part_head,
                 tail: second_part_tail,
                 len: self.len - at,
@@ -357,12 +358,12 @@ impl<K, V> EntryLinkedList<K, V> {
 
             second_part
         } else {
-            mem::replace(self, EntryLinkedList::new())
+            mem::replace(self, EntryNodeLinkedList::new())
         }
     }
 }
 
-impl<K: Clone, V: Clone> Clone for EntryLinkedList<K, V> {
+impl<K: Clone, V: Clone> Clone for EntryNodeLinkedList<K, V> {
     fn clone(&self) -> Self {
         self.iter_entry().cloned().collect()
     }
@@ -381,21 +382,21 @@ impl<K: Clone, V: Clone> Clone for EntryLinkedList<K, V> {
     }
 }
 
-impl<K, V> Extend<Entry<K, V>> for EntryLinkedList<K, V> {
-    fn extend<I: IntoIterator<Item = Entry<K, V>>>(&mut self, iter: I) {
+impl<K, V> Extend<EntryNode<K, V>> for EntryNodeLinkedList<K, V> {
+    fn extend<I: IntoIterator<Item = EntryNode<K, V>>>(&mut self, iter: I) {
         <Self as SpecExtend<I>>::spec_extend(self, iter);
     }
 }
 
-impl<K, V, I: IntoIterator<Item = Entry<K, V>>> SpecExtend<I> for EntryLinkedList<K, V> {
+impl<K, V, I: IntoIterator<Item = EntryNode<K, V>>> SpecExtend<I> for EntryNodeLinkedList<K, V> {
     fn spec_extend(&mut self, iter: I) {
         iter.into_iter()
             .for_each(move |elt| self.push_back(Box::new(elt)));
     }
 }
 
-impl<K, V> SpecExtend<EntryLinkedList<K, V>> for EntryLinkedList<K, V> {
-    fn spec_extend(&mut self, ref mut other: EntryLinkedList<K, V>) {
+impl<K, V> SpecExtend<EntryNodeLinkedList<K, V>> for EntryNodeLinkedList<K, V> {
+    fn spec_extend(&mut self, ref mut other: EntryNodeLinkedList<K, V>) {
         self.append(other);
     }
 }
