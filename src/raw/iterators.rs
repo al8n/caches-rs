@@ -106,7 +106,7 @@ impl<'a, K: Hash + Eq, V> FromIterator<(K, V)> for RawLRU<'a, K, V> {
     fn from_iter<T: IntoIterator<Item = (K, V)>>(iter: T) -> Self {
         let iter = iter.into_iter();
 
-        let mut this = Self::new(iter.size_hint().0);
+        let mut this = Self::new(iter.size_hint().0).unwrap();
         iter.for_each(|(k, v)| {
             this.put(k, v);
         });

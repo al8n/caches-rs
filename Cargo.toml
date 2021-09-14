@@ -10,3 +10,20 @@ nightly = ["hashbrown", "hashbrown/nightly"]
 
 [dependencies]
 hashbrown = {version = "0.11.2", optional = true}
+
+
+#[[bench]]
+#name = "two_queue_cache"
+#harness = false
+
+[[bench]]
+name = "lru_cache"
+harness = false
+
+[dev-dependencies]
+scoped_threadpool = "0.1.*"
+stats_alloc = "0.1.*"
+rand = "0.8.4"
+criterion = "0.3.5"
+fnv = "1.0.7"
+rustc-hash = "1.0"

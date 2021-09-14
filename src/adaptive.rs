@@ -1,3 +1,5 @@
+#![allow(dead_code)]
+
 use crate::{DefaultEvictCallback, DefaultHashBuilder, RawLRU};
 
 /// `AdaptiveCache` is a fixed size Adaptive Replacement Cache (ARC).
@@ -16,14 +18,14 @@ pub struct AdaptiveCache<'a, K, V, S = DefaultHashBuilder> {
     p: usize,
 
     /// `t1` is the LRU for recently accessed items
-    t1: RawLRU<'a, K, V, DefaultEvictCallback, S>,
+    t1: &'a mut RawLRU<K, V, DefaultEvictCallback, S>,
 
     /// `b1` is the LRU for evictions from `t1`
-    b1: RawLRU<'a, K, V, DefaultEvictCallback, S>,
+    b1: &'a mut RawLRU<K, V, DefaultEvictCallback, S>,
 
     /// `t2` is the LRU for frequently accessed items
-    t2: RawLRU<'a, K, V, DefaultEvictCallback, S>,
+    t2: &'a mut RawLRU<K, V, DefaultEvictCallback, S>,
 
     /// `b2` is the LRU for evictions from `t2`
-    b2: RawLRU<'a, K, V, DefaultEvictCallback, S>,
+    b2: &'a mut RawLRU<K, V, DefaultEvictCallback, S>,
 }

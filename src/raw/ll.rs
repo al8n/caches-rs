@@ -4,7 +4,7 @@ use core::borrow::Borrow;
 use core::fmt::{Debug, Formatter};
 use core::hash::{Hash, Hasher};
 use core::marker::PhantomData;
-use core::mem;
+use core::{mem, ptr};
 use core::mem::MaybeUninit;
 use core::ptr::NonNull;
 
@@ -62,8 +62,8 @@ impl<K> Borrow<K> for KeyRef<K> {
 pub(crate) struct EntryNode<K, V> {
     pub(crate) key: MaybeUninit<K>,
     pub(crate) val: MaybeUninit<V>,
-    pub(crate) prev: Option<NonNull<EntryNode<K, V>>>,
-    pub(crate) next: Option<NonNull<EntryNode<K, V>>>,
+    pub(crate) prev: *mut EntryNode<K, V>,
+    pub(crate) next: *mut EntryNode<K, V>,
 }
 
 impl<K: Clone, V: Clone> Clone for EntryNode<K, V> {
@@ -91,10 +91,19 @@ impl<K: Debug, V: Debug> Debug for EntryNode<K, V> {
 impl<K, V> EntryNode<K, V> {
     pub(crate) fn new(key: K, val: V) -> Self {
         Self {
-            key: MaybeUninit::new(key),
-            val: MaybeUninit::new(val),
-            prev: None,
-            next: None,
+            key: mem::MaybeUninit::new(key),
+            val: mem::MaybeUninit::new(val),
+            prev: ptr::null_mut(),
+            next: ptr::null_mut(),
+        }
+    }
+
+    fn new_sigil() -> Self {
+        Self {
+            key: mem::MaybeUninit::uninit(),
+            val: mem::MaybeUninit::uninit(),
+            prev: ptr::null_mut(),
+            next: ptr::null_mut(),
         }
     }
 }
@@ -104,20 +113,27 @@ impl<K, V> EntryNode<K, V> {
 /// For LRU, read and write should be O(1), so we need a
 /// double direct linked list.
 pub(crate) struct EntryNodeLinkedList<K, V> {
-    pub(crate) head: Option<NonNull<EntryNode<K, V>>>,
-    pub(crate) tail: Option<NonNull<EntryNode<K, V>>>,
+    // head and tail are sigil nodes to faciliate inserting entries
+    pub(crate) head: *mut EntryNode<K, V>,
+    pub(crate) tail: *mut EntryNode<K, V>,
     pub(crate) len: usize,
     pub(crate) marker: PhantomData<Box<EntryNode<K, V>>>,
 }
 
 impl<K, V> Default for EntryNodeLinkedList<K, V> {
     fn default() -> Self {
-        Self {
-            head: None,
-            tail: None,
+        let ll = Self {
+            head: Box::into_raw(Box::new(EntryNode::new_sigil())),
+            tail: Box::into_raw(Box::new(EntryNode::new_sigil())),
             len: 0,
             marker: PhantomData,
+        };
+
+        unsafe {
+            (*ll.head).next = ll.tail;
+            (*ll.head).prev = ll.head;
         }
+        ll
     }
 }
 
@@ -142,24 +158,40 @@ impl<K, V> EntryNodeLinkedList<K, V> {
 
     pub(crate) fn detach(&mut self, ent: *mut EntryNode<K, V>) {
         unsafe {
-            // Not creating new mutable (unique!) references overlapping `element`.
-            match (*ent).prev {
-                Some(prev) => (*prev.as_ptr()).next = (*ent).next,
-                // this node is the head node
-                None => self.head = (*ent).next,
-            };
-
-            match (*ent).next {
-                Some(next) => (*next.as_ptr()).prev = (*ent).prev,
-                // this node is the tail node
-                None => self.tail = (*ent).prev,
-            };
-            self.len -= 1;
+            (*(*ent).prev).next = (*ent).next;
+            (*(*ent).next).prev = (*ent).prev;
         }
+        self.len -= 1;
     }
 
+    // pub(crate) fn detach_tail(&mut self) -> *const K {
+    //     let tail = self.tail.unwrap().as_ptr();
+    //     unsafe {
+    //         // Not creating new mutable (unique!) references overlapping `element`.
+    //         match (*tail).prev {
+    //             Some(prev) => (*prev.as_ptr()).next = (*tail).next,
+    //             // this node is the head node
+    //             None => self.head = (*tail).next,
+    //         };
+    //
+    //         match (*tail).next {
+    //             Some(next) => (*next.as_ptr()).prev = (*tail).prev,
+    //             // this node is the tail node
+    //             None => self.tail = (*tail).prev,
+    //         };
+    //         self.len -= 1;
+    //         (*tail).key.as_ptr()
+    //     }
+    // }
+
     // move entry to front
-    pub(crate) fn attach(&mut self, mut ent: *mut EntryNode<K, V>) {
+    pub(crate) fn attach(&mut self, ent: *mut EntryNode<K, V>) {
+        unsafe {
+            (*ent).next = (*self.head).next;
+            (*ent).prev = self.head;
+            (*self.head).next = ent;
+            (*(*ent).next).prev = ent;
+        }
         unsafe {
             (*ent).next = self.head;
             (*ent).prev = None;
@@ -234,7 +266,7 @@ impl<K, V> EntryNodeLinkedList<K, V> {
         }
     }
 
-    pub(crate) fn back(&self) -> Option<&K> {
+    pub(crate) fn back<'a>(&self) -> Option<&'a K> {
         unsafe {
             self.tail
                 .as_ref()
@@ -242,7 +274,7 @@ impl<K, V> EntryNodeLinkedList<K, V> {
         }
     }
 
-    pub(crate) fn back_key_value(&self) -> Option<(&K, &V)> {
+    pub(crate) fn back_key_value<'a>(&self) -> Option<(&'a K, &'a V)> {
         unsafe {
             self.tail.as_ref().map(|ent| {
                 let ent_ref = ent.as_ref();
@@ -254,7 +286,7 @@ impl<K, V> EntryNodeLinkedList<K, V> {
         }
     }
 
-    pub(crate) fn back_key_value_mut(&mut self) -> Option<(&K, &mut V)> {
+    pub(crate) fn back_key_value_mut<'a>(&mut self) -> Option<(&'a K, &'a mut V)> {
         unsafe {
             self.tail.as_mut().map(|ent| {
                 let ent_ref = ent.as_mut();
