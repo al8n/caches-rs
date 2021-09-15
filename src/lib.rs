@@ -1,7 +1,5 @@
 #![no_std]
 #![cfg_attr(feature = "nightly", feature(negative_impls, auto_traits))]
-#![feature(test)]
-extern crate test;
 
 #[deny(missing_docs)]
 extern crate alloc;
