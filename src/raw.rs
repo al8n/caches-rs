@@ -1,7 +1,11 @@
+// The code in this file is modified based on [Jerome Froelich's LRU implementation](https://github.com/jeromefroe/lru-rs).
+//
 // MIT License
-
+//
+// Copyright (c) 2021 Al Liu
+//
 // Copyright (c) 2016 Jerome Froelich
-
+//
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
 // in the Software without restriction, including without limitation the rights
@@ -19,8 +23,16 @@
 // LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
+
+// #[cfg(feature = "hashbrown")]
+// use hashbrown::{HashMap, HashSet};
+// #[cfg(not(feature = "hashbrown"))]
+// use std::collections::{HashMap, HashSet};
+
 use alloc::borrow::Borrow;
 use alloc::boxed::Box;
+use alloc::collections::{BTreeMap, BTreeSet, BinaryHeap, LinkedList, VecDeque};
+use alloc::vec::Vec;
 use core::fmt;
 use core::hash::{BuildHasher, Hash};
 use core::iter::{FromIterator, FusedIterator};
@@ -31,16 +43,18 @@ use core::usize;
 
 use crate::{
     CacheError, DefaultEvictCallback, DefaultHashBuilder, KeyRef, OnEvictCallback, PutResult,
+    import_hashbrown, import_std
 };
-use alloc::collections::{BTreeMap, BTreeSet, BinaryHeap, LinkedList, VecDeque};
-use alloc::vec::Vec;
-#[cfg(feature = "hashbrown")]
-use hashbrown::HashMap;
-use hashbrown::HashSet;
-#[cfg(not(feature = "hashbrown"))]
-use std::collections::HashMap;
 
-extern crate alloc;
+import_hashbrown!(
+    HashSet,
+    HashMap
+);
+
+import_std!(
+    HashSet,
+    HashMap
+);
 
 // Struct used to hold a key value pair. Also contains references to previous and next entries
 // so we can maintain the entries in a linked list ordered by their use.

@@ -13,18 +13,14 @@ extern crate std;
 
 mod lru;
 mod raw;
-
-#[macro_use]
-mod macros;
 mod adaptive;
 mod two_queue;
 
-// pub use raw::{
-//     IntoIter, Iter, IterMut, Keys, RawLRU, ReversedIter, ReversedIterMut, ReversedKeys,
-//     ReversedValues, ReversedValuesMut, Values, ValuesMut,
-// };
+#[macro_use]
+mod macros;
 
-pub use raw::{KeysLRUIter, KeysMRUIter, LRUIter, LRUIterMut, MRUIter, MRUIterMut, RawLRU};
+
+pub use raw::{KeysLRUIter, KeysMRUIter, ValuesLRUIter, ValuesMRUIter, ValuesLRUIterMut, ValuesMRUIterMut, LRUIter, LRUIterMut, MRUIter, MRUIterMut, RawLRU};
 
 // pub use two_queue::{
 //     TwoQueueCache,
@@ -33,16 +29,17 @@ pub use raw::{KeysLRUIter, KeysMRUIter, LRUIter, LRUIterMut, MRUIter, MRUIterMut
 // };
 
 pub use lru::LRUCache;
-
 use core::borrow::Borrow;
 use core::fmt::{Debug, Display, Formatter};
 use core::hash::{Hash, Hasher};
 
-#[cfg(feature = "hashbrown")]
-pub type DefaultHashBuilder = hashbrown::hash_map::DefaultHashBuilder;
+cfg_hashbrown!(
+    pub type DefaultHashBuilder = hashbrown::hash_map::DefaultHashBuilder;
+);
 
-#[cfg(not(feature = "hashbrown"))]
-pub type DefaultHashBuilder = std::collections::hash_map::DefaultHasher;
+cfg_not_hashbrown!(
+    pub type DefaultHashBuilder = std::collections::hash_map::DefaultHasher;
+);
 
 // Struct used to hold a reference to a key
 #[doc(hidden)]
@@ -64,30 +61,27 @@ impl<K: PartialEq> PartialEq for KeyRef<K> {
 
 impl<K: Eq> Eq for KeyRef<K> {}
 
-#[cfg(feature = "nightly")]
-#[doc(hidden)]
-pub auto trait NotKeyRef {}
-
-#[cfg(feature = "nightly")]
-impl<K> !NotKeyRef for KeyRef<K> {}
-
-#[cfg(feature = "nightly")]
-impl<K, D> Borrow<D> for KeyRef<K>
-where
-    K: Borrow<D>,
-    D: NotKeyRef + ?Sized,
-{
-    fn borrow(&self) -> &D {
-        unsafe { &*self.k }.borrow()
+cfg_nightly_hidden_doc!(
+    pub auto trait NotKeyRef {}
+    impl<K> !NotKeyRef for KeyRef<K> {}
+    impl<K, D> Borrow<D> for KeyRef<K>
+    where
+        K: Borrow<D>,
+        D: NotKeyRef + ?Sized,
+    {
+        fn borrow(&self) -> &D {
+            unsafe { &*self.k }.borrow()
+        }
     }
-}
+);
 
-#[cfg(not(feature = "nightly"))]
-impl<K> Borrow<K> for KeyRef<K> {
-    fn borrow(&self) -> &K {
-        unsafe { &*self.k }
+cfg_not_nightly!(
+    impl<K> Borrow<K> for KeyRef<K> {
+        fn borrow(&self) -> &K {
+            unsafe { &*self.k }
+        }
     }
-}
+);
 
 /// `DefaultEvictCallback` is a noop evict callback.
 #[derive(Debug, Clone, Copy)]
