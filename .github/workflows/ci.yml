@@ -54,30 +54,10 @@ jobs:
       - name: Run cargo-tarpaulin
         uses: actions-rs/tarpaulin@v0.1
         with:
-          args: '--all-features --workspace --out Xml'
+          args: '--run-types AllTargets --all-features --workspace --out Xml'
 
       - name: Upload to codecov.io
         uses: codecov/codecov-action@v1.0.2
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
           fail_ci_if_error: true
-  publish_on_crates_io:
-    name: Publish on crates.io
-    runs-on: ubuntu-latest
-    if: startsWith(github.ref, 'refs/tags') # Only on tags
-    needs:
-      - build
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v2
-      - name: Install rust
-        uses: actions-rs/toolchain@v1
-      - name: Run cargo login
-        uses: actions-rs/cargo@v1
-        with:
-          command: login
-          args: ${{ secrets.CRATES_IO_TOKEN }}
-      - name: Run cargo publish
-        uses: actions-rs/cargo@v1
-        with:
-          command: publish
