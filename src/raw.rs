@@ -42,19 +42,13 @@ use core::ptr;
 use core::usize;
 
 use crate::{
-    CacheError, DefaultEvictCallback, DefaultHashBuilder, KeyRef, OnEvictCallback, PutResult,
-    import_hashbrown, import_std
+    import_hashbrown, import_std, CacheError, DefaultEvictCallback, DefaultHashBuilder, KeyRef,
+    OnEvictCallback, PutResult,
 };
 
-import_hashbrown!(
-    HashSet,
-    HashMap
-);
+import_hashbrown!(HashSet, HashMap);
 
-import_std!(
-    HashSet,
-    HashMap
-);
+import_std!(HashSet, HashMap);
 
 // Struct used to hold a key value pair. Also contains references to previous and next entries
 // so we can maintain the entries in a linked list ordered by their use.

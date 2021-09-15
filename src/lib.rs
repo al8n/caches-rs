@@ -11,16 +11,18 @@ extern crate hashbrown;
 #[cfg(any(test, not(feature = "hashbrown")))]
 extern crate std;
 
+mod adaptive;
 mod lru;
 mod raw;
-mod adaptive;
 mod two_queue;
 
 #[macro_use]
 mod macros;
 
-
-pub use raw::{KeysLRUIter, KeysMRUIter, ValuesLRUIter, ValuesMRUIter, ValuesLRUIterMut, ValuesMRUIterMut, LRUIter, LRUIterMut, MRUIter, MRUIterMut, RawLRU};
+pub use raw::{
+    KeysLRUIter, KeysMRUIter, LRUIter, LRUIterMut, MRUIter, MRUIterMut, RawLRU, ValuesLRUIter,
+    ValuesLRUIterMut, ValuesMRUIter, ValuesMRUIterMut,
+};
 
 // pub use two_queue::{
 //     TwoQueueCache,
@@ -28,10 +30,10 @@ pub use raw::{KeysLRUIter, KeysMRUIter, ValuesLRUIter, ValuesMRUIter, ValuesLRUI
 //     DEFAULT_2Q_GHOST_RATIO,
 // };
 
-pub use lru::LRUCache;
 use core::borrow::Borrow;
 use core::fmt::{Debug, Display, Formatter};
 use core::hash::{Hash, Hasher};
+pub use lru::LRUCache;
 
 cfg_hashbrown!(
     pub type DefaultHashBuilder = hashbrown::hash_map::DefaultHashBuilder;
