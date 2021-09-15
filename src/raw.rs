@@ -130,15 +130,33 @@ impl<K: Hash + Eq, V, S: BuildHasher> RawLRU<K, V, DefaultEvictCallback, S> {
 
 impl<K: Hash + Eq, V, E: OnEvictCallback> RawLRU<K, V, E, DefaultHashBuilder> {
     /// Creates a new LRU Cache that holds at most `cap` items and
-    /// uses the provided hash builder to hash keys.
+    /// uses the provided evict callback.
     ///
     /// # Example
     ///
     /// ```
-    /// use hashicorp_lru::{RawLRU, DefaultHashBuilder};
+    /// use hashicorp_lru::{RawLRU, OnEvictCallback};
+    /// use std::sync::atomic::{AtomicU64, Ordering};
     ///
-    /// let s = DefaultHashBuilder::default();
-    /// let mut cache: RawLRU<isize, &str> = RawLRU::with_hasher(10, s).unwrap();
+    /// struct EvictedCounter {
+    ///     ctr: AtomicU64,
+    /// }
+    ///
+    /// impl Default for EvictedCounter {
+    ///     fn default() -> Self {
+    ///         Self {
+    ///             ctr: AtomicU64::new(0),
+    ///         }
+    ///     }
+    /// }
+    ///
+    /// impl OnEvictCallback for EvictedCounter {
+    ///     fn on_evict<K, V>(&self, _: &K, _: &V) {
+    ///         self.ctr.fetch_add(1, Ordering::SeqCst);
+    ///     }
+    /// }
+    ///
+    /// let mut cache: RawLRU<isize, &str, EvictedCounter> = RawLRU::with_on_evict_cb(10, EvictedCounter::default()).unwrap();
     /// ```
     pub fn with_on_evict_cb(cap: usize, cb: E) -> Result<Self, CacheError> {
         check_size(cap).map(|_| Self::construct(cap, HashMap::with_capacity(cap), Some(cb)))
@@ -146,7 +164,36 @@ impl<K: Hash + Eq, V, E: OnEvictCallback> RawLRU<K, V, E, DefaultHashBuilder> {
 }
 
 impl<K: Hash + Eq, V, E: OnEvictCallback, S: BuildHasher> RawLRU<K, V, E, S> {
-    pub fn with_hasher_and_on_evict_cb(cap: usize, cb: E, hasher: S) -> Result<Self, CacheError> {
+    /// Creates a new LRU Cache that holds at most `cap` items and
+    /// uses the provided evict callback and the provided hash builder to hash keys.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use hashicorp_lru::{RawLRU, OnEvictCallback, DefaultHashBuilder};
+    /// use std::sync::atomic::{AtomicU64, Ordering};
+    ///
+    /// struct EvictedCounter {
+    ///     ctr: AtomicU64,
+    /// }
+    ///
+    /// impl Default for EvictedCounter {
+    ///     fn default() -> Self {
+    ///         Self {
+    ///             ctr: AtomicU64::new(0),
+    ///         }
+    ///     }
+    /// }
+    ///
+    /// impl OnEvictCallback for EvictedCounter {
+    ///     fn on_evict<K, V>(&self, _: &K, _: &V) {
+    ///         self.ctr.fetch_add(1, Ordering::SeqCst);
+    ///     }
+    /// }
+    ///
+    /// let cache: RawLRU<isize, &str, EvictedCounter, DefaultHashBuilder> = RawLRU::with_on_evict_cb_and_hasher(10, EvictedCounter::default(), DefaultHashBuilder::default()).unwrap();
+    /// ```
+    pub fn with_on_evict_cb_and_hasher(cap: usize, cb: E, hasher: S) -> Result<Self, CacheError> {
         check_size(cap).map(|_| {
             Self::construct(
                 cap,
@@ -266,9 +313,7 @@ impl<K: Hash + Eq, V, E: OnEvictCallback, S: BuildHasher> RawLRU<K, V, E, S> {
     /// cache.put("banana", 6);
     /// cache.put("pear", 2);
     ///
-    /// assert_eq!(cache.get_mut(&"apple"), None);
-    /// assert_eq!(cache.get_mut(&"banana"), Some(&mut 6));
-    /// assert_eq!(cache.get_mut(&"pear"), Some(&mut 2));
+    /// assert_eq!(cache.get_lru(), Some((&"banana", &6)));
     /// ```
     pub fn get_lru(&mut self) -> Option<(&K, &V)> {
         if self.is_empty() {
@@ -335,9 +380,7 @@ impl<K: Hash + Eq, V, E: OnEvictCallback, S: BuildHasher> RawLRU<K, V, E, S> {
     /// cache.put("banana", 6);
     /// cache.put("pear", 2);
     ///
-    /// assert_eq!(cache.get_mut(&"apple"), None);
-    /// assert_eq!(cache.get_mut(&"banana"), Some(&mut 6));
-    /// assert_eq!(cache.get_mut(&"pear"), Some(&mut 2));
+    /// assert_eq!(cache.get_lru_mut(), Some((&"banana", &mut 6)));
     /// ```
     pub fn get_lru_mut(&mut self) -> Option<(&K, &mut V)> {
         if self.is_empty() {
@@ -1185,7 +1228,7 @@ impl_rawlru_from_kv_collections! (
 unsafe impl<K: Send, V: Send, E: Send, S: Send> Send for RawLRU<K, V, E, S> {}
 unsafe impl<K: Sync, V: Sync, E: Send, S: Sync> Sync for RawLRU<K, V, E, S> {}
 
-impl<K: Hash + Eq, V> fmt::Debug for RawLRU<K, V> {
+impl<K: Hash + Eq, V, E: OnEvictCallback, S: BuildHasher> fmt::Debug for RawLRU<K, V, E, S> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         f.debug_struct("RawLRU")
             .field("len", &self.len())

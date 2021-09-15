@@ -37,7 +37,7 @@ shall be dual licensed as above, without any additional terms or conditions.
 
 [Github-url]: https://github.com/al8n/hashicorp-lru/
 [CI-url]: https://github.com/al8n/hashicorp-lru/actions/workflows/ci.yml
-[codecov-url]: https://app.codecov.io/gh/al8n/hashicorp-lru/
+[codecov-url]: https://codecov.io/gh/al8n/hashicorp-lru
 [license-apache-url]: https://opensource.org/licenses/Apache-2.0
 [license-mit-url]: https://opensource.org/licenses/Apache-2.0
 [crates-url]: https://crates.io/crates/hashicorp-lru
