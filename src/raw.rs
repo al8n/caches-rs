@@ -2,9 +2,9 @@
 //
 // MIT License
 //
-// Copyright (c) 2021 Al Liu
+// Copyright (c) 2021 Al Liu (https://github.com/al8n/hashicorp-lru)
 //
-// Copyright (c) 2016 Jerome Froelich
+// Copyright (c) 2016 Jerome Froelich (https://github.com/jeromefroe/lru-rs)
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -23,12 +23,6 @@
 // LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
-
-// #[cfg(feature = "hashbrown")]
-// use hashbrown::{HashMap, HashSet};
-// #[cfg(not(feature = "hashbrown"))]
-// use std::collections::{HashMap, HashSet};
-
 use alloc::borrow::Borrow;
 use alloc::boxed::Box;
 use alloc::collections::{BTreeMap, BTreeSet, BinaryHeap, LinkedList, VecDeque};
@@ -47,7 +41,6 @@ use crate::{
 };
 
 import_hashbrown!(HashSet, HashMap);
-
 import_std!(HashSet, HashMap);
 
 // Struct used to hold a key value pair. Also contains references to previous and next entries
@@ -87,11 +80,10 @@ fn check_size(size: usize) -> Result<(), CacheError> {
     }
 }
 
-/// An RawLRU Cache
+/// A fixed size RawLRU Cache
 pub struct RawLRU<K, V, E = DefaultEvictCallback, S = DefaultHashBuilder> {
     map: HashMap<KeyRef<K>, Box<EntryNode<K, V>>, S>,
     cap: usize,
-
     on_evict: Option<E>,
 
     // head and tail are sigil nodes to faciliate inserting entries
