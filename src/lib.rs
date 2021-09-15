@@ -4,16 +4,12 @@
 extern crate test;
 
 #[deny(missing_docs)]
-
 extern crate alloc;
 #[cfg(feature = "hashbrown")]
 extern crate hashbrown;
 
 #[cfg(any(test, not(feature = "hashbrown")))]
 extern crate std;
-
-
-
 
 mod lru;
 mod raw;
@@ -23,15 +19,12 @@ mod macros;
 mod adaptive;
 mod two_queue;
 
-
 // pub use raw::{
 //     IntoIter, Iter, IterMut, Keys, RawLRU, ReversedIter, ReversedIterMut, ReversedKeys,
 //     ReversedValues, ReversedValuesMut, Values, ValuesMut,
 // };
 
-pub use raw::{
-    Iter, IterMut, RawLRU
-};
+pub use raw::{KeysLRUIter, KeysMRUIter, LRUIter, LRUIterMut, MRUIter, MRUIterMut, RawLRU};
 
 // pub use two_queue::{
 //     TwoQueueCache,
@@ -41,13 +34,60 @@ pub use raw::{
 
 pub use lru::LRUCache;
 
+use core::borrow::Borrow;
 use core::fmt::{Debug, Display, Formatter};
+use core::hash::{Hash, Hasher};
 
 #[cfg(feature = "hashbrown")]
 pub type DefaultHashBuilder = hashbrown::hash_map::DefaultHashBuilder;
 
 #[cfg(not(feature = "hashbrown"))]
 pub type DefaultHashBuilder = std::collections::hash_map::DefaultHasher;
+
+// Struct used to hold a reference to a key
+#[doc(hidden)]
+pub struct KeyRef<K> {
+    k: *const K,
+}
+
+impl<K: Hash> Hash for KeyRef<K> {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        unsafe { (*self.k).hash(state) }
+    }
+}
+
+impl<K: PartialEq> PartialEq for KeyRef<K> {
+    fn eq(&self, other: &KeyRef<K>) -> bool {
+        unsafe { (*self.k).eq(&*other.k) }
+    }
+}
+
+impl<K: Eq> Eq for KeyRef<K> {}
+
+#[cfg(feature = "nightly")]
+#[doc(hidden)]
+pub auto trait NotKeyRef {}
+
+#[cfg(feature = "nightly")]
+impl<K> !NotKeyRef for KeyRef<K> {}
+
+#[cfg(feature = "nightly")]
+impl<K, D> Borrow<D> for KeyRef<K>
+where
+    K: Borrow<D>,
+    D: NotKeyRef + ?Sized,
+{
+    fn borrow(&self) -> &D {
+        unsafe { &*self.k }.borrow()
+    }
+}
+
+#[cfg(not(feature = "nightly"))]
+impl<K> Borrow<K> for KeyRef<K> {
+    fn borrow(&self) -> &K {
+        unsafe { &*self.k }
+    }
+}
 
 /// `DefaultEvictCallback` is a noop evict callback.
 #[derive(Debug, Clone, Copy)]
@@ -82,10 +122,7 @@ pub enum PutResult<K, V> {
 
     /// `Evicted` means that the the key is not in cache previously,
     /// but the cache is full, so the evict happens. The inner is the evicted entry `(Key, Value)`.
-    Evicted{
-        key: K,
-        value: V,
-    },
+    Evicted { key: K, value: V },
 }
 
 impl<K: PartialEq, V: PartialEq> PartialEq for PutResult<K, V> {
@@ -94,15 +131,15 @@ impl<K: PartialEq, V: PartialEq> PartialEq for PutResult<K, V> {
             PutResult::Put => match other {
                 PutResult::Put => true,
                 _ => false,
-            }
+            },
             PutResult::Update(old_val) => match other {
                 PutResult::Update(v) => *v == *old_val,
-                _ => false
-            }
-            PutResult::Evicted{key, value} => match other {
-                PutResult::Evicted{ key: ok, value: ov} => *key ==*ok && *value == *ov,
-                _ => false
-            }
+                _ => false,
+            },
+            PutResult::Evicted { key, value } => match other {
+                PutResult::Evicted { key: ok, value: ov } => *key == *ok && *value == *ov,
+                _ => false,
+            },
         }
     }
 }
@@ -114,7 +151,9 @@ impl<K: Debug, V: Debug> Debug for PutResult<K, V> {
         match self {
             PutResult::Put => write!(f, "PutResult::Put"),
             PutResult::Update(old_val) => write!(f, "PutResult::Update({:?})", *old_val),
-            PutResult::Evicted{key: k, value: v} => write!(f, "PutResult::Evicted {{key: {:?}, val: {:?}}}", *k, *v),
+            PutResult::Evicted { key: k, value: v } => {
+                write!(f, "PutResult::Evicted {{key: {:?}, val: {:?}}}", *k, *v)
+            }
         }
     }
 }
@@ -124,13 +163,15 @@ impl<K: Clone, V: Clone> Clone for PutResult<K, V> {
         match self {
             PutResult::Put => PutResult::Put,
             PutResult::Update(v) => PutResult::Update(v.clone()),
-            PutResult::Evicted{key: k, value: v} => PutResult::Evicted{ key: k.clone(), value: v.clone()},
+            PutResult::Evicted { key: k, value: v } => PutResult::Evicted {
+                key: k.clone(),
+                value: v.clone(),
+            },
         }
     }
 }
 
 impl<K: Copy, V: Copy> Copy for PutResult<K, V> {}
-
 
 /// `CacheError` is the errors of this crate.
 #[derive(Debug, PartialEq)]
@@ -145,7 +186,7 @@ impl Display for CacheError {
         match self {
             CacheError::InvalidSize(size) => write!(f, "invalid cache size {}", *size),
             CacheError::InvalidRecentRatio(r) => write!(f, "invalid recent ratio {}", *r),
-            CacheError::InvalidGhostRatio(r) => write!(f, "invalid ghost ratio {}", *r)
+            CacheError::InvalidGhostRatio(r) => write!(f, "invalid ghost ratio {}", *r),
         }
     }
 }

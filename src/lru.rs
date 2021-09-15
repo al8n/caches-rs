@@ -1,4 +1,12 @@
-use crate::{DefaultEvictCallback, DefaultHashBuilder, Iter, IterMut, RawLRU, CacheError, PutResult};
+use crate::{
+    CacheError, DefaultEvictCallback, DefaultHashBuilder, KeyRef, LRUIter, LRUIterMut, MRUIter,
+    MRUIterMut, PutResult, RawLRU,
+};
+
+#[cfg(feature = "nightly")]
+use crate::NotKeyRef;
+
+use core::borrow::Borrow;
 use core::hash::{BuildHasher, Hash};
 
 // #[cfg(feature = "hashbrown")]
@@ -24,18 +32,14 @@ pub struct LRUCache<K, V, S = DefaultHashBuilder> {
 // }
 
 impl<'a, K: Hash + Eq, V> LRUCache<K, V> {
-    pub fn new(size: usize) ->  Result<Self, CacheError> {
-        RawLRU::new(size).map(|raw| Self {
-            core: raw,
-        })
+    pub fn new(size: usize) -> Result<Self, CacheError> {
+        RawLRU::new(size).map(|raw| Self { core: raw })
     }
 }
 
 impl<K: Hash + Eq, V, S: BuildHasher> LRUCache<K, V, S> {
     pub fn with_hasher(size: usize, hasher: S) -> Result<Self, CacheError> {
-        RawLRU::with_hasher(size, hasher).map(|r| Self {
-            core: r,
-        })
+        RawLRU::with_hasher(size, hasher).map(|r| Self { core: r })
     }
 
     /// `purge` is used to completely clear the cache.
@@ -49,14 +53,14 @@ impl<K: Hash + Eq, V, S: BuildHasher> LRUCache<K, V, S> {
     ///
     /// ```
     /// use hashicorp_lru::{LRUCache, PutResult};
-    /// let mut cache = LRUCache::new(2);
+    /// let mut cache = LRUCache::new(2).unwrap();
     ///
     /// assert_eq!(PutResult::Put, cache.put(1, "a"));
     /// assert_eq!(PutResult::Put, cache.put(2, "b"));
     /// assert_eq!(PutResult::Update("b"), cache.put(2, "beta"));
     /// assert_eq!(PutResult::Evicted{ key: 1, value: "a"}, cache.put(3, "c"));
     ///
-    /// assert_eq!(cache.get(&1), Some(&"a"));
+    /// assert_eq!(cache.get(&1), None);
     /// assert_eq!(cache.get(&2), Some(&"beta"));
     /// ```
     ///
@@ -107,17 +111,17 @@ impl<K: Hash + Eq, V, S: BuildHasher> LRUCache<K, V, S> {
     //     self.core.reversed_values_mut()
     // }
 
-    /// `iter` returns an iterator of entries, from newest to oldest.
+    /// `iter` returns an iterator of entries, in most recent used order.
     ///
     /// The iterator will not updating the recent-ness or deleting it for being stale.
-    pub fn iter(&self) -> Iter<'_, K, V> {
+    pub fn iter(&self) -> MRUIter<'_, K, V> {
         self.core.iter()
     }
 
-    /// `iter_mut` returns an iterator of mutable entries, from newest to oldest.
+    /// `iter_mut` returns an iterator of mutable entries, in most recent used order.
     ///
     /// The iterator will not updating the recent-ness or deleting it for being stale.
-    pub fn iter_mut(&mut self) -> IterMut<'_, K, V> {
+    pub fn iter_mut(&mut self) -> MRUIterMut<'_, K, V> {
         self.core.iter_mut()
     }
 
@@ -136,12 +140,20 @@ impl<K: Hash + Eq, V, S: BuildHasher> LRUCache<K, V, S> {
     // }
 
     /// `get` looks up a key's value from the cache.
-    pub fn get(&mut self, k: &K) -> Option<&V> {
+    pub fn get<Q>(&mut self, k: &Q) -> Option<&V>
+    where
+        KeyRef<K>: Borrow<Q>,
+        Q: Hash + Eq + ?Sized,
+    {
         self.core.get(k)
     }
 
     /// `get_mut` looks up a key's value(mutable) from the cache.
-    pub fn get_mut(&mut self, k: &K) -> Option<&mut V> {
+    pub fn get_mut<Q>(&mut self, k: &Q) -> Option<&mut V>
+    where
+        KeyRef<K>: Borrow<Q>,
+        Q: Hash + Eq + ?Sized,
+    {
         self.core.get_mut(k)
     }
 
@@ -157,13 +169,21 @@ impl<K: Hash + Eq, V, S: BuildHasher> LRUCache<K, V, S> {
 
     /// `peek` returns the value (or undefined if not found) without updating
     /// the "recently used"-ness of the key.
-    pub fn peek(&self, k: &K) -> Option<&V> {
+    pub fn peek<Q>(&self, k: &Q) -> Option<&V>
+    where
+        KeyRef<K>: Borrow<Q>,
+        Q: Hash + Eq + ?Sized,
+    {
         self.core.peek(k)
     }
 
     /// `peek_mut` returns the mutable value (or undefined if not found) without updating
     /// the "recently used"-ness of the key.
-    pub fn peek_mut(&mut self, k: &K) -> Option<&mut V> {
+    pub fn peek_mut<Q>(&mut self, k: &Q) -> Option<&mut V>
+    where
+        KeyRef<K>: Borrow<Q>,
+        Q: Hash + Eq + ?Sized,
+    {
         self.core.peek_mut(k)
     }
 
@@ -181,7 +201,11 @@ impl<K: Hash + Eq, V, S: BuildHasher> LRUCache<K, V, S> {
 
     /// `remove` removes the provided key from the cache.
     /// if the k is in cache, return the removed entry.
-    pub fn remove(&mut self, k: &K) -> Option<V> {
+    pub fn remove<Q>(&mut self, k: &Q) -> Option<V>
+    where
+        KeyRef<K>: Borrow<Q>,
+        Q: Hash + Eq + ?Sized,
+    {
         self.core.remove(k)
     }
 
@@ -193,16 +217,35 @@ impl<K: Hash + Eq, V, S: BuildHasher> LRUCache<K, V, S> {
 
     /// `contains` checks if a key is in the cache, without updating the
     /// recent-ness or deleting it for being stale.
-    pub fn contains(&self, k: &K) -> bool {
+    pub fn contains<Q>(&self, k: &Q) -> bool
+    where
+        KeyRef<K>: Borrow<Q>,
+        Q: Hash + Eq + ?Sized,
+    {
         self.core.contains(k)
     }
 
-    // /// `contains_or_put` checks if a key is in the cache without updating the
-    // /// recent-ness or deleting it for being stale, and if not, adds the value.
-    // /// Returns whether found and whether an eviction occurred.
-    // pub fn contains_or_put(&mut self, k: K, v: V) -> (Option<(K, V)>, bool) {
-    //     self.core.contains_or_put(k, v)
-    // }
+    /// `contains_or_put` checks if a key is in the cache without updating the
+    /// recent-ness or deleting it for being stale, and if not, adds the value.
+    /// Returns whether found and whether an eviction occurred.
+    ///
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use hashicorp_lru::{LRUCache, PutResult};
+    /// let mut cache = LRUCache::new(2).unwrap();
+    ///
+    /// cache.put(1, "a");
+    /// cache.put(2, "b");
+    /// cache.put(3, "c");
+    ///
+    /// assert_eq!(cache.contains_or_put(2, "B"), (true, None));
+    /// assert_eq!(cache.contains_or_put(1, "A"), (false, Some(PutResult::Evicted { key: 2, value: "b",})));
+    /// ```
+    pub fn contains_or_put(&mut self, k: K, v: V) -> (bool, Option<PutResult<K, V>>) {
+        self.core.contains_or_put(k, v)
+    }
 
     /// `resize` changes the cache size. return the number of evicted entries
     pub fn resize(&mut self, size: usize) -> u64 {
