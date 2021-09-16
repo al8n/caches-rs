@@ -1,4 +1,4 @@
-#![no_std]
+// #![no_std]
 #![cfg_attr(feature = "nightly", feature(negative_impls, auto_traits))]
 
 #[deny(missing_docs)]
@@ -116,7 +116,15 @@ pub enum PutResult<K, V> {
 
     /// `Evicted` means that the the key is not in cache previously,
     /// but the cache is full, so the evict happens. The inner is the evicted entry `(Key, Value)`.
-    Evicted { key: K, value: V },
+    Evicted {
+        key: K,
+        value: V,
+    },
+
+    EvictedAndUpdate {
+        evicted: (K, V),
+        update: V,
+    },
 }
 
 impl<K: PartialEq, V: PartialEq> PartialEq for PutResult<K, V> {
@@ -134,6 +142,17 @@ impl<K: PartialEq, V: PartialEq> PartialEq for PutResult<K, V> {
                 PutResult::Evicted { key: ok, value: ov } => *key == *ok && *value == *ov,
                 _ => false,
             },
+            PutResult::EvictedAndUpdate { evicted, update } => match other {
+                PutResult::EvictedAndUpdate {
+                    evicted: other_evicted,
+                    update: other_update,
+                } => {
+                    (*evicted).0 == (*other_evicted).0
+                        && (*evicted).1 == (*other_evicted).1
+                        && *update == *other_update
+                }
+                _ => false,
+            },
         }
     }
 }
@@ -148,6 +167,7 @@ impl<K: Debug, V: Debug> Debug for PutResult<K, V> {
             PutResult::Evicted { key: k, value: v } => {
                 write!(f, "PutResult::Evicted {{key: {:?}, val: {:?}}}", *k, *v)
             }
+            PutResult::EvictedAndUpdate { evicted, update } => write!(f, "PutResult::EvictedAndUpdate {{ evicted: {{key: {:?}, value: {:?}}}, update: {:?} }}", (*evicted).0, (*evicted).1, *update),
         }
     }
 }
@@ -160,6 +180,10 @@ impl<K: Clone, V: Clone> Clone for PutResult<K, V> {
             PutResult::Evicted { key: k, value: v } => PutResult::Evicted {
                 key: k.clone(),
                 value: v.clone(),
+            },
+            PutResult::EvictedAndUpdate { evicted, update } => PutResult::EvictedAndUpdate {
+                evicted: evicted.clone(),
+                update: update.clone(),
             },
         }
     }
