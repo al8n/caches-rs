@@ -22,11 +22,11 @@ pub use raw::{
     ValuesLRUIterMut, ValuesMRUIter, ValuesMRUIterMut,
 };
 
-// pub use two_queue::{
-//     TwoQueueCache,
-//     DEFAULT_2Q_RECENT_RATIO,
-//     DEFAULT_2Q_GHOST_RATIO,
-// };
+pub use two_queue::{
+    TwoQueueCache,
+    DEFAULT_2Q_RECENT_RATIO,
+    DEFAULT_2Q_GHOST_RATIO,
+};
 
 use core::borrow::Borrow;
 use core::fmt::{Debug, Display, Formatter};
@@ -95,7 +95,7 @@ pub trait OnEvictCallback {
     fn on_evict<K, V>(&self, key: &K, val: &V);
 }
 
-/// `PutResult` is returned when try to put a entry in cache
+/// `PutResult` is returned when try to put a entry in cache.
 ///
 /// - **`PutResult::Put`** means that the key is not in cache previously, and the cache has enough
 /// capacity, no evict happens.
@@ -105,6 +105,11 @@ pub trait OnEvictCallback {
 ///
 /// - **`PutResult::Evicted`** means that the the key is not in cache previously,
 /// but the cache is full, so the evict happens. The inner is the evicted entry `(Key, Value)`.
+///
+/// - **`PutResult::EvictedAndUpdate`** is only possible to be returned by [`TwoQueueCache`] and [`AdaptiveCache`]. For more information, please see the related examples of [`TwoQueueCache`] and [`AdaptiveCache`]
+///
+/// [`TwoQueueCache`]: struct.TwoQueueCache.html
+/// [`AdaptiveCache`]: struct.AdaptiveCache.html
 pub enum PutResult<K, V> {
     /// `Put` means that the key is not in cache previously, and the cache has enough
     /// capacity, no evict happens.
@@ -121,6 +126,12 @@ pub enum PutResult<K, V> {
         value: V,
     },
 
+    /// `EvictedAndUpdate` is only possible to be returned by [`TwoQueueCache`] and [`AdaptiveCache`].
+    ///
+    /// For more information, please see the related examples of [`TwoQueueCache`] and [`AdaptiveCache`]
+    ///
+    /// [`TwoQueueCache`]: struct.TwoQueueCache.html
+    /// [`AdaptiveCache`]: struct.AdaptiveCache.html
     EvictedAndUpdate {
         evicted: (K, V),
         update: V,
