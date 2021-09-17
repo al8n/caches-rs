@@ -1,18 +1,171 @@
-use crate::{CacheError, DefaultEvictCallback, DefaultHashBuilder, KeyRef, RawLRU, PutResult};
-use core::hash::{BuildHasher, Hash};
-use core::borrow::Borrow;
-use core::mem;
 use crate::raw::EntryNode;
+use crate::{CacheError, DefaultEvictCallback, DefaultHashBuilder, KeyRef, PutResult, RawLRU};
 use alloc::boxed::Box;
-
+use core::borrow::Borrow;
+use core::hash::{BuildHasher, Hash};
+use core::mem;
 
 /// DEFAULT_2Q_RECENT_RATIO is the ratio of the 2Q cache dedicated
 /// to recently added entries that have only been accessed once.
-pub static DEFAULT_2Q_RECENT_RATIO: f64 = 0.25;
+pub const DEFAULT_2Q_RECENT_RATIO: f64 = 0.25;
 
 /// DEFAULT_2Q_GHOST_ENTRIES is the default ratio of ghost
 /// entries kept to track entries recently evicted
-pub static DEFAULT_2Q_GHOST_RATIO: f64 = 0.5;
+pub const DEFAULT_2Q_GHOST_RATIO: f64 = 0.5;
+
+/// `TwoQueueCacheBuilder` is used to help build a [`TwoQueueCache`] with custom configuration.
+///
+/// [`TwoQueueCache`]: struct.TwoQueueCache.html
+pub struct TwoQueueCacheBuilder<
+    RH = DefaultHashBuilder,
+    FH = DefaultHashBuilder,
+    GH = DefaultHashBuilder,
+> {
+    size: usize,
+    ghost_ratio: Option<f64>,
+    recent_ratio: Option<f64>,
+    recent_hasher: Option<RH>,
+    freq_hasher: Option<FH>,
+    ghost_hasher: Option<GH>,
+}
+
+impl TwoQueueCacheBuilder {
+    /// Returns a default [`TwoQueueCacheBuilder`].
+    ///
+    /// # Example
+    /// ```rust
+    /// use hashicorp_lru::{TwoQueueCacheBuilder, TwoQueueCache};
+    /// use rustc_hash::FxHasher;
+    /// use std::hash::BuildHasherDefault;
+    ///
+    /// let mut cache = TwoQueueCacheBuilder::new(3)
+    ///     .set_recent_ratio(0.3)
+    ///     .set_ghost_ratio(0.4)
+    ///     .set_recent_hasher(BuildHasherDefault::<FxHasher>::default())
+    ///     .set_frequent_hasher(BuildHasherDefault::<FxHasher>::default())
+    ///     .set_ghost_hasher(BuildHasherDefault::<FxHasher>::default())
+    ///     .finalize::<u64, u64>()
+    ///     .unwrap();
+    ///
+    /// cache.put(1, 1);
+    /// ```
+    ///
+    /// [`TwoQueueCacheBuilder`]: struct.TwoQueueCacheBuilder.html
+    pub fn new(size: usize) -> Self {
+        Self {
+            size,
+            ghost_ratio: Some(DEFAULT_2Q_GHOST_RATIO),
+            recent_ratio: Some(DEFAULT_2Q_RECENT_RATIO),
+            recent_hasher: Some(DefaultHashBuilder::default()),
+            freq_hasher: Some(DefaultHashBuilder::default()),
+            ghost_hasher: Some(DefaultHashBuilder::default()),
+        }
+    }
+}
+
+impl<RH: BuildHasher, FH: BuildHasher, GH: BuildHasher> TwoQueueCacheBuilder<RH, FH, GH> {
+    /// Set the ghost LRU size ratio
+    pub fn set_ghost_ratio(mut self, ratio: f64) -> Self {
+        self.ghost_ratio.insert(ratio);
+        self
+    }
+
+    /// Set the recent LRU size ratio
+    pub fn set_recent_ratio(mut self, ratio: f64) -> Self {
+        self.recent_ratio.insert(ratio);
+        self
+    }
+
+    /// Set the cache size
+    pub fn set_size(mut self, size: usize) -> Self {
+        self.size = size;
+        self
+    }
+
+    /// Set the recent LRU's hash builder
+    pub fn set_recent_hasher<NRH: BuildHasher>(
+        self,
+        hasher: NRH,
+    ) -> TwoQueueCacheBuilder<NRH, FH, GH> {
+        TwoQueueCacheBuilder {
+            size: self.size,
+            ghost_ratio: self.ghost_ratio,
+            recent_ratio: self.recent_ratio,
+            recent_hasher: Some(hasher),
+            freq_hasher: self.freq_hasher,
+            ghost_hasher: self.ghost_hasher,
+        }
+    }
+
+    /// Set the frequent LRU's hash builder
+    pub fn set_frequent_hasher<NFH: BuildHasher>(
+        self,
+        hasher: NFH,
+    ) -> TwoQueueCacheBuilder<RH, NFH, GH> {
+        TwoQueueCacheBuilder {
+            size: self.size,
+            ghost_ratio: self.ghost_ratio,
+            recent_ratio: self.recent_ratio,
+            recent_hasher: self.recent_hasher,
+            freq_hasher: Some(hasher),
+            ghost_hasher: self.ghost_hasher,
+        }
+    }
+
+    /// Set the ghost LRU's hash builder
+    pub fn set_ghost_hasher<NGH: BuildHasher>(
+        self,
+        hasher: NGH,
+    ) -> TwoQueueCacheBuilder<RH, FH, NGH> {
+        TwoQueueCacheBuilder {
+            size: self.size,
+            ghost_ratio: self.ghost_ratio,
+            recent_ratio: self.recent_ratio,
+            recent_hasher: self.recent_hasher,
+            freq_hasher: self.freq_hasher,
+            ghost_hasher: Some(hasher),
+        }
+    }
+
+    /// Finalize the builder to [`TwoQueueCache`]
+    ///
+    /// [`TwoQueueCache`]: struct.TwoQueueCache.html
+    pub fn finalize<K: Hash + Eq, V>(self) -> Result<TwoQueueCache<K, V, RH, FH, GH>, CacheError> {
+        let size = self.size;
+        if size == 0 {
+            return Err(CacheError::InvalidSize(0));
+        }
+
+        let rr = self.recent_ratio.unwrap();
+        if rr < 0.0 || rr > 1.0 {
+            return Err(CacheError::InvalidRecentRatio(rr));
+        }
+
+        let gr = self.ghost_ratio.unwrap();
+        if gr < 0.0 || gr > 1.0 {
+            return Err(CacheError::InvalidGhostRatio(gr));
+        }
+
+        // Determine the sub-sizes
+        let rs = ((size as f64) * rr).floor() as usize;
+        let es = ((size as f64) * gr).floor() as usize;
+
+        // allocate the lrus
+
+        let recent = RawLRU::with_hasher(size, self.recent_hasher.unwrap()).unwrap();
+        let freq = RawLRU::with_hasher(size, self.freq_hasher.unwrap()).unwrap();
+
+        let ghost = RawLRU::with_hasher(es, self.ghost_hasher.unwrap()).unwrap();
+
+        Ok(TwoQueueCache {
+            size,
+            recent_size: rs,
+            recent,
+            frequent: freq,
+            ghost,
+        })
+    }
+}
 
 /// `TwoQueueCache` is a fixed size 2Q cache.
 /// 2Q is an enhancement over the standard LRU cache
@@ -23,27 +176,87 @@ pub static DEFAULT_2Q_GHOST_RATIO: f64 = 0.5;
 /// computationally about 2x the cost, and adds some metadata over
 /// head. The ARCCache is similar, but does not require setting any
 /// parameters.
-pub struct TwoQueueCache<K, V, S = DefaultHashBuilder> {
+pub struct TwoQueueCache<
+    K,
+    V,
+    RH = DefaultHashBuilder,
+    FH = DefaultHashBuilder,
+    GH = DefaultHashBuilder,
+> {
     size: usize,
     recent_size: usize,
-    recent: RawLRU<K, V, DefaultEvictCallback, S>,
-    frequent: RawLRU<K, V, DefaultEvictCallback, S>,
-    ghost: RawLRU<K, V, DefaultEvictCallback, S>,
+    recent: RawLRU<K, V, DefaultEvictCallback, RH>,
+    frequent: RawLRU<K, V, DefaultEvictCallback, FH>,
+    ghost: RawLRU<K, V, DefaultEvictCallback, GH>,
 }
 
 impl<K: Hash + Eq, V> TwoQueueCache<K, V> {
+    /// Create a `TwoQueueCache` with size and default configurations.
     pub fn new(size: usize) -> Result<Self, CacheError> {
         Self::with_2q_parameters(size, DEFAULT_2Q_RECENT_RATIO, DEFAULT_2Q_GHOST_RATIO)
     }
 
+    /// Returns a [`TwoQueueCacheBuilder`] to help build a [`TwoQueueCache`].
+    ///
+    /// # Example
+    /// ```rust
+    /// use hashicorp_lru::{TwoQueueCacheBuilder, TwoQueueCache};
+    /// use rustc_hash::FxHasher;
+    /// use std::hash::BuildHasherDefault;
+    ///
+    /// let mut cache = TwoQueueCache::<u64, u64>::builder(3)
+    ///     .set_recent_ratio(0.3)
+    ///     .set_ghost_ratio(0.4)
+    ///     .set_recent_hasher(BuildHasherDefault::<FxHasher>::default())
+    ///     .set_frequent_hasher(BuildHasherDefault::<FxHasher>::default())
+    ///     .set_ghost_hasher(BuildHasherDefault::<FxHasher>::default())
+    ///     .finalize::<u64, u64>()
+    ///     .unwrap();
+    ///
+    /// cache.put(1, 1);
+    /// ```
+    ///
+    /// [`TwoQueueCacheBuilder`]: struct.TwoQueueCacheBuilder.html
+    /// [`TwoQueueCache`]: struct.TwoQueueCache.html
+    pub fn builder(size: usize) -> TwoQueueCacheBuilder {
+        TwoQueueCacheBuilder::new(size)
+    }
+
+    /// Create a cache with size and recent ratio.
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// use hashicorp_lru::TwoQueueCache;
+    ///
+    /// let mut cache: TwoQueueCache<u64, u64>= TwoQueueCache::with_recent_ratio(5, 0.3).unwrap();
+    /// ```
     pub fn with_recent_ratio(size: usize, rr: f64) -> Result<Self, CacheError> {
         Self::with_2q_parameters(size, rr, DEFAULT_2Q_GHOST_RATIO)
     }
 
+    /// Create a cache with size and ghost ratio.
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// use hashicorp_lru::TwoQueueCache;
+    ///
+    /// let mut cache: TwoQueueCache<u64, u64>= TwoQueueCache::with_ghost_ratio(5, 0.6).unwrap();
+    /// ```
     pub fn with_ghost_ratio(size: usize, gr: f64) -> Result<Self, CacheError> {
         Self::with_2q_parameters(size, DEFAULT_2Q_RECENT_RATIO, gr)
     }
 
+    /// Create a cache with size, recent ratio and ghost ratio
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// use hashicorp_lru::TwoQueueCache;
+    ///
+    /// let mut cache: TwoQueueCache<u64, u64>= TwoQueueCache::with_2q_parameters(5, 0.3, 0.6).unwrap();
+    /// ```
     pub fn with_2q_parameters(size: usize, rr: f64, gr: f64) -> Result<Self, CacheError> {
         if size == 0 {
             return Err(CacheError::InvalidSize(size));
@@ -77,58 +290,32 @@ impl<K: Hash + Eq, V> TwoQueueCache<K, V> {
     }
 }
 
-impl<K: Hash + Eq, V, S: BuildHasher + Clone> TwoQueueCache<K, V, S> {
-    pub fn with_recent_ratio_and_hasher(
-        size: usize,
-        rr: f64,
-        hasher: S,
-    ) -> Result<Self, CacheError> {
-        Self::with_2q_parameters_and_hasher(size, rr, DEFAULT_2Q_GHOST_RATIO, hasher)
-    }
-
-    pub fn with_ghost_ratio_and_hasher(
-        size: usize,
-        gr: f64,
-        hasher: S,
-    ) -> Result<Self, CacheError> {
-        Self::with_2q_parameters_and_hasher(size, DEFAULT_2Q_RECENT_RATIO, gr, hasher)
-    }
-
-    pub fn with_2q_parameters_and_hasher(
-        size: usize,
-        rr: f64,
-        gr: f64,
-        hasher: S,
-    ) -> Result<Self, CacheError> {
-        if size == 0 {
-            return Err(CacheError::InvalidSize(size));
-        }
-
-        if rr < 0.0 || rr > 1.0 {
-            return Err(CacheError::InvalidRecentRatio(rr));
-        }
-
-        if gr < 0.0 || gr > 1.0 {
-            return Err(CacheError::InvalidGhostRatio(gr));
-        }
-
-        // Determine the sub-sizes
-        let rs = ((size as f64) * rr).floor() as usize;
-        let es = ((size as f64) * gr).floor() as usize;
-
-        // allocate the lrus
-        let recent = RawLRU::with_hasher(size, hasher.clone()).unwrap();
-        let freq = RawLRU::with_hasher(size, hasher.clone()).unwrap();
-
-        let ghost = RawLRU::with_hasher(es, hasher)?;
-
-        Ok(Self {
-            size,
-            recent_size: rs,
-            recent,
-            frequent: freq,
-            ghost,
-        })
+impl<K: Hash + Eq, V, RH: BuildHasher, FH: BuildHasher, GH: BuildHasher>
+    TwoQueueCache<K, V, RH, FH, GH>
+{
+    /// Create a [`TwoQueueCache`] from [`TwoQueueCacheBuilder`].
+    ///
+    /// # Example
+    /// ```rust
+    /// use hashicorp_lru::{TwoQueueCacheBuilder, TwoQueueCache};
+    /// use rustc_hash::FxHasher;
+    /// use std::hash::BuildHasherDefault;
+    ///
+    /// let mut builder = TwoQueueCacheBuilder::new(5)
+    ///     .set_recent_ratio(0.3)
+    ///     .set_ghost_ratio(0.4)
+    ///     .set_recent_hasher(BuildHasherDefault::<FxHasher>::default())
+    ///     .set_frequent_hasher(BuildHasherDefault::<FxHasher>::default())
+    ///     .set_ghost_hasher(BuildHasherDefault::<FxHasher>::default());
+    ///
+    /// let mut cache = TwoQueueCache::from_builder(builder).unwrap();
+    /// cache.put(1, 1);
+    /// ```
+    ///
+    /// [`TwoQueueCacheBuilder`]: struct.TwoQueueCacheBuilder.html
+    /// [`TwoQueueCache`]: struct.TwoQueueCache.html
+    pub fn from_builder(builder: TwoQueueCacheBuilder<RH, FH, GH>) -> Result<Self, CacheError> {
+        builder.finalize()
     }
 
     /// Puts a key-value pair to the cache.
@@ -213,7 +400,7 @@ impl<K: Hash + Eq, V, S: BuildHasher + Clone> TwoQueueCache<K, V, S> {
                 };
 
                 let rst = self.ghost.put_or_evict_box(ent);
-                match self.ghost.map.remove(&key_ref)  {
+                match self.ghost.map.remove(&key_ref) {
                     None => match rst {
                         None => PutResult::Put,
                         Some(mut ent) => {
@@ -237,7 +424,7 @@ impl<K: Hash + Eq, V, S: BuildHasher + Clone> TwoQueueCache<K, V, S> {
                                 Some(ent) => PutResult::EvictedAndUpdate {
                                     evicted: (ent.key.assume_init(), ent.val.assume_init()),
                                     update: v,
-                                }
+                                },
                             }
                         }
                     }
@@ -251,7 +438,7 @@ impl<K: Hash + Eq, V, S: BuildHasher + Clone> TwoQueueCache<K, V, S> {
                 }
                 self.frequent.put_box(ent);
                 PutResult::Update(v)
-            }
+            };
         }
 
         // Add to the recently seen list.
@@ -295,8 +482,9 @@ impl<K: Hash + Eq, V, S: BuildHasher + Clone> TwoQueueCache<K, V, S> {
     /// assert_eq!(cache.get(&"banana"), Some(&6));
     /// ```
     pub fn get<'a, Q>(&'a mut self, k: &'a Q) -> Option<&'a V>
-        where KeyRef<K>: Borrow<Q>,
-              Q: Hash + Eq + ?Sized,
+    where
+        KeyRef<K>: Borrow<Q>,
+        Q: Hash + Eq + ?Sized,
     {
         // Check if this is a frequent value
         self.frequent
@@ -329,8 +517,9 @@ impl<K: Hash + Eq, V, S: BuildHasher + Clone> TwoQueueCache<K, V, S> {
     /// assert_eq!(cache.get_mut(&"pear"), Some(&mut 2));
     /// ```
     pub fn get_mut<'a, Q>(&'a mut self, k: &'a Q) -> Option<&'a mut V>
-        where KeyRef<K>: Borrow<Q>,
-              Q: Hash + Eq + ?Sized,
+    where
+        KeyRef<K>: Borrow<Q>,
+        Q: Hash + Eq + ?Sized,
     {
         // Check if this is a frequent value
         self.frequent
@@ -361,8 +550,9 @@ impl<K: Hash + Eq, V, S: BuildHasher + Clone> TwoQueueCache<K, V, S> {
     /// assert_eq!(cache.peek(&2), Some(&"b"));
     /// ```
     pub fn peek<'a, Q>(&'a self, k: &'a Q) -> Option<&'a V>
-        where KeyRef<K>: Borrow<Q>,
-              Q: Hash + Eq + ?Sized,
+    where
+        KeyRef<K>: Borrow<Q>,
+        Q: Hash + Eq + ?Sized,
     {
         self.frequent.peek(k).or_else(|| self.recent.peek(k))
     }
@@ -384,10 +574,13 @@ impl<K: Hash + Eq, V, S: BuildHasher + Clone> TwoQueueCache<K, V, S> {
     /// assert_eq!(cache.peek_mut(&2), Some(&mut "b"));
     /// ```
     pub fn peek_mut<'a, Q>(&'a mut self, k: &'a Q) -> Option<&'a mut V>
-        where KeyRef<K>: Borrow<Q>,
-              Q: Hash + Eq + ?Sized,
+    where
+        KeyRef<K>: Borrow<Q>,
+        Q: Hash + Eq + ?Sized,
     {
-        self.frequent.peek_mut(k).or_else(|| self.recent.peek_mut(k))
+        self.frequent
+            .peek_mut(k)
+            .or_else(|| self.recent.peek_mut(k))
     }
 
     /// Removes and returns the value corresponding to the key from the cache or
@@ -407,14 +600,13 @@ impl<K: Hash + Eq, V, S: BuildHasher + Clone> TwoQueueCache<K, V, S> {
     /// assert_eq!(cache.len(), 0);
     /// ```
     pub fn remove<Q>(&mut self, k: &Q) -> Option<V>
-    where KeyRef<K>: Borrow<Q>,
-    Q: Hash + Eq + ?Sized,
+    where
+        KeyRef<K>: Borrow<Q>,
+        Q: Hash + Eq + ?Sized,
     {
-        self.frequent.remove(k).or_else(|| {
-            self.recent
-                .remove(k)
-                .or_else(|| self.ghost.remove(k))
-        })
+        self.frequent
+            .remove(k)
+            .or_else(|| self.recent.remove(k).or_else(|| self.ghost.remove(k)))
     }
 
     /// Returns a bool indicating whether the given key is in the cache. Does not update the
@@ -435,9 +627,9 @@ impl<K: Hash + Eq, V, S: BuildHasher + Clone> TwoQueueCache<K, V, S> {
     /// assert!(cache.contains(&3));
     /// ```
     pub fn contains<Q>(&self, k: &Q) -> bool
-        where
-            KeyRef<K>: Borrow<Q>,
-            Q: Hash + Eq + ?Sized,
+    where
+        KeyRef<K>: Borrow<Q>,
+        Q: Hash + Eq + ?Sized,
     {
         self.frequent.contains(k) || self.recent.contains(k)
     }
@@ -489,10 +681,10 @@ impl<K: Hash + Eq, V, S: BuildHasher + Clone> TwoQueueCache<K, V, S> {
 #[cfg(test)]
 mod test {
     use crate::two_queue::TwoQueueCache;
+    use crate::PutResult;
     use alloc::vec::Vec;
     use rand::seq::SliceRandom;
     use rand::{thread_rng, Rng};
-    use crate::{PutResult};
 
     #[test]
     fn test_2q_cache_random_ops() {
@@ -596,13 +788,13 @@ mod test {
         assert_eq!(cache.frequent.len(), 1, "bad: {}", cache.frequent.len());
 
         // Add 7, should evict an entry from ghost LRU.
-        assert_eq!(cache.put(7, 7), PutResult::Evicted { key: 2, value: 2});
+        assert_eq!(cache.put(7, 7), PutResult::Evicted { key: 2, value: 2 });
         assert_eq!(cache.recent.len(), 3, "bad: {}", cache.recent.len());
         assert_eq!(cache.ghost.len(), 2, "bad: {}", cache.ghost.len());
         assert_eq!(cache.frequent.len(), 1, "bad: {}", cache.frequent.len());
 
         // Add 2, should evict an entry from ghost LRU
-        assert_eq!(cache.put(2, 11), PutResult::Evicted { key: 3, value: 3});
+        assert_eq!(cache.put(2, 11), PutResult::Evicted { key: 3, value: 3 });
         assert_eq!(cache.recent.len(), 3, "bad: {}", cache.recent.len());
         assert_eq!(cache.ghost.len(), 2, "bad: {}", cache.ghost.len());
         assert_eq!(cache.frequent.len(), 1, "bad: {}", cache.frequent.len());
@@ -626,7 +818,13 @@ mod test {
 
         // Add 6, should put the entry from ghost LRU to freq LRU, and evicted one
         // entry
-        assert_eq!(cache.put(6, 66), PutResult::EvictedAndUpdate { evicted: (5, 5), update: 6 });
+        assert_eq!(
+            cache.put(6, 66),
+            PutResult::EvictedAndUpdate {
+                evicted: (5, 5),
+                update: 6
+            }
+        );
         assert_eq!(cache.recent.len(), 0, "bad: {}", cache.recent.len());
         assert_eq!(cache.ghost.len(), 1, "bad: {}", cache.ghost.len());
         assert_eq!(cache.frequent.len(), 4, "bad: {}", cache.frequent.len());
@@ -642,13 +840,17 @@ mod test {
 
         assert_eq!(cache.len(), 128);
 
-        let rst = cache.frequent.keys_lru().chain(cache.recent.keys_lru()).enumerate().map(|(idx, k)| (idx as u64, *k)).collect::<Vec<(u64, u64)>>();
+        let rst = cache
+            .frequent
+            .keys_lru()
+            .chain(cache.recent.keys_lru())
+            .enumerate()
+            .map(|(idx, k)| (idx as u64, *k))
+            .collect::<Vec<(u64, u64)>>();
 
-        rst.into_iter().for_each(|(idx, k)| {
-            match cache.get(&k) {
-                None => panic!("bad: {}", k),
-                Some(val) => assert_eq!(*val, idx + 128),
-            }
+        rst.into_iter().for_each(|(idx, k)| match cache.get(&k) {
+            None => panic!("bad: {}", k),
+            Some(val) => assert_eq!(*val, idx + 128),
         });
 
         (0..128).for_each(|k| {
@@ -656,7 +858,7 @@ mod test {
         });
 
         (128..256).for_each(|k| {
-           assert_ne!(cache.get(&k), None);
+            assert_ne!(cache.get(&k), None);
         });
 
         (128..192).for_each(|k| {
@@ -677,8 +879,10 @@ mod test {
 
         assert!(cache.contains(&1));
         cache.put(3, 3);
-        assert!(!cache.contains(&1), "should be in ghost LRU, and the elements in the ghost is not counted as in cache");
-
+        assert!(
+            !cache.contains(&1),
+            "should be in ghost LRU, and the elements in the ghost is not counted as in cache"
+        );
     }
 
     #[test]

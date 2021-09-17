@@ -23,9 +23,7 @@ pub use raw::{
 };
 
 pub use two_queue::{
-    TwoQueueCache,
-    DEFAULT_2Q_RECENT_RATIO,
-    DEFAULT_2Q_GHOST_RATIO,
+    TwoQueueCache, TwoQueueCacheBuilder, DEFAULT_2Q_GHOST_RATIO, DEFAULT_2Q_RECENT_RATIO,
 };
 
 use core::borrow::Borrow;
@@ -121,10 +119,7 @@ pub enum PutResult<K, V> {
 
     /// `Evicted` means that the the key is not in cache previously,
     /// but the cache is full, so the evict happens. The inner is the evicted entry `(Key, Value)`.
-    Evicted {
-        key: K,
-        value: V,
-    },
+    Evicted { key: K, value: V },
 
     /// `EvictedAndUpdate` is only possible to be returned by [`TwoQueueCache`] and [`AdaptiveCache`].
     ///
@@ -132,10 +127,7 @@ pub enum PutResult<K, V> {
     ///
     /// [`TwoQueueCache`]: struct.TwoQueueCache.html
     /// [`AdaptiveCache`]: struct.AdaptiveCache.html
-    EvictedAndUpdate {
-        evicted: (K, V),
-        update: V,
-    },
+    EvictedAndUpdate { evicted: (K, V), update: V },
 }
 
 impl<K: PartialEq, V: PartialEq> PartialEq for PutResult<K, V> {

@@ -1053,8 +1053,7 @@ impl<K: Hash + Eq, V, E: OnEvictCallback, S: BuildHasher> RawLRU<K, V, E, S> {
         }
     }
 
-    pub(crate) fn put_box(&mut self, mut bks: Box<EntryNode<K, V>>) -> PutResult<K, V>
-    {
+    pub(crate) fn put_box(&mut self, mut bks: Box<EntryNode<K, V>>) -> PutResult<K, V> {
         if self.len() >= self.cap() {
             unsafe {
                 // Safety: the cache length is not zero, so the cache must have a tail node.
@@ -1062,10 +1061,20 @@ impl<K: Hash + Eq, V, E: OnEvictCallback, S: BuildHasher> RawLRU<K, V, E, S> {
                 self.detach(node);
 
                 // Safety: the node is in cache, so the cache map must have the node.
-                let node = self.map.remove(&KeyRef {k: node.key.as_ptr()}).unwrap();
+                let node = self
+                    .map
+                    .remove(&KeyRef {
+                        k: node.key.as_ptr(),
+                    })
+                    .unwrap();
 
                 self.attach(bks.as_mut());
-                self.map.insert(KeyRef{ k: bks.key.as_ptr() }, bks);
+                self.map.insert(
+                    KeyRef {
+                        k: bks.key.as_ptr(),
+                    },
+                    bks,
+                );
 
                 PutResult::Evicted {
                     key: node.key.assume_init(),
@@ -1118,8 +1127,10 @@ impl<K: Hash + Eq, V, E: OnEvictCallback, S: BuildHasher> RawLRU<K, V, E, S> {
         }
     }
 
-    pub(crate) fn put_or_evict_box(&mut self, mut bks: Box<EntryNode<K, V>>) -> Option<Box<EntryNode<K, V>>>
-    {
+    pub(crate) fn put_or_evict_box(
+        &mut self,
+        mut bks: Box<EntryNode<K, V>>,
+    ) -> Option<Box<EntryNode<K, V>>> {
         if self.len() >= self.cap() {
             unsafe {
                 // Safety: the cache length is not zero, so the cache must have a tail node.
@@ -1127,10 +1138,20 @@ impl<K: Hash + Eq, V, E: OnEvictCallback, S: BuildHasher> RawLRU<K, V, E, S> {
                 self.detach(node);
 
                 // Safety: the node is in cache, so the cache map must have the node.
-                let node = self.map.remove(&KeyRef {k: node.key.as_ptr()}).unwrap();
+                let node = self
+                    .map
+                    .remove(&KeyRef {
+                        k: node.key.as_ptr(),
+                    })
+                    .unwrap();
 
                 self.attach(bks.as_mut());
-                self.map.insert(KeyRef{ k: bks.key.as_ptr() }, bks);
+                self.map.insert(
+                    KeyRef {
+                        k: bks.key.as_ptr(),
+                    },
+                    bks,
+                );
                 Some(node)
             }
         } else {
