@@ -11,7 +11,7 @@
 //!
 //! [<img alt="Build" src="https://img.shields.io/badge/Build-passing-brightgreen?style=for-the-badge&logo=Github-Actions" height="22">][CI-url]
 //! [<img alt="codecov" src="https://img.shields.io/codecov/c/gh/al8n/hashicorp-lru?style=for-the-badge&token=65Q9QTR99U&logo=codecov" height="22">][codecov-url]
-//! 
+//!
 //! [<img alt="license-apache" src="https://img.shields.io/badge/License-Apache%202.0-blue.svg?style=for-the-badge&logo=Apache" height="22">][license-apache-url]
 //! [<img alt="license-mit" src="https://img.shields.io/badge/License-MIT-yellow.svg?style=for-the-badge&fontColor=white&logoColor=f5c076&logo=data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIGhlaWdodD0iMzZweCIgdmlld0JveD0iMCAwIDI0IDI0IiB3aWR0aD0iMzZweCIgZmlsbD0iI2Y1YzA3NiI+PHBhdGggZD0iTTAgMGgyNHYyNEgwVjB6IiBmaWxsPSJub25lIi8+PHBhdGggZD0iTTEwLjA4IDEwLjg2Yy4wNS0uMzMuMTYtLjYyLjMtLjg3cy4zNC0uNDYuNTktLjYyYy4yNC0uMTUuNTQtLjIyLjkxLS4yMy4yMy4wMS40NC4wNS42My4xMy4yLjA5LjM4LjIxLjUyLjM2cy4yNS4zMy4zNC41My4xMy40Mi4xNC42NGgxLjc5Yy0uMDItLjQ3LS4xMS0uOS0uMjgtMS4yOXMtLjQtLjczLS43LTEuMDEtLjY2LS41LTEuMDgtLjY2LS44OC0uMjMtMS4zOS0uMjNjLS42NSAwLTEuMjIuMTEtMS43LjM0cy0uODguNTMtMS4yLjkyLS41Ni44NC0uNzEgMS4zNlM4IDExLjI5IDggMTEuODd2LjI3YzAgLjU4LjA4IDEuMTIuMjMgMS42NHMuMzkuOTcuNzEgMS4zNS43Mi42OSAxLjIuOTFjLjQ4LjIyIDEuMDUuMzQgMS43LjM0LjQ3IDAgLjkxLS4wOCAxLjMyLS4yM3MuNzctLjM2IDEuMDgtLjYzLjU2LS41OC43NC0uOTQuMjktLjc0LjMtMS4xNWgtMS43OWMtLjAxLjIxLS4wNi40LS4xNS41OHMtLjIxLjMzLS4zNi40Ni0uMzIuMjMtLjUyLjNjLS4xOS4wNy0uMzkuMDktLjYuMS0uMzYtLjAxLS42Ni0uMDgtLjg5LS4yMy0uMjUtLjE2LS40NS0uMzctLjU5LS42MnMtLjI1LS41NS0uMy0uODgtLjA4LS42Ny0uMDgtMXYtLjI3YzAtLjM1LjAzLS42OC4wOC0xLjAxek0xMiAyQzYuNDggMiAyIDYuNDggMiAxMnM0LjQ4IDEwIDEwIDEwIDEwLTQuNDggMTAtMTBTMTcuNTIgMiAxMiAyem0wIDE4Yy00LjQxIDAtOC0zLjU5LTgtOHMzLjU5LTggOC04IDggMy41OSA4IDgtMy41OSA4LTggOHoiLz48L3N2Zz4=" height="22">][license-mit-url]
 //! </div>
@@ -51,9 +51,11 @@ pub use two_queue::{
     TwoQueueCache, TwoQueueCacheBuilder, DEFAULT_2Q_GHOST_RATIO, DEFAULT_2Q_RECENT_RATIO,
 };
 
+use crate::raw::EntryNode;
 use core::borrow::Borrow;
 use core::fmt::{Debug, Display, Formatter};
 use core::hash::{Hash, Hasher};
+use core::mem;
 
 cfg_hashbrown!(
     /// Re-export for DefaultHashBuilder
@@ -189,12 +191,11 @@ pub enum PutResult<K, V> {
         value: V,
     },
 
-    /// `EvictedAndUpdate` is only possible to be returned by [`TwoQueueCache`] and [`AdaptiveCache`].
+    /// `EvictedAndUpdate` is only possible to be returned by [`TwoQueueCache`].
     ///
-    /// For more information, please see the related examples of [`TwoQueueCache`] and [`AdaptiveCache`]
+    /// For more information, please see the related examples of [`TwoQueueCache`].
     ///
     /// [`TwoQueueCache`]: struct.TwoQueueCache.html
-    /// [`AdaptiveCache`]: struct.AdaptiveCache.html
     EvictedAndUpdate {
         /// The evicted entry.
         evicted: (K, V),
@@ -290,4 +291,8 @@ impl Display for CacheError {
             CacheError::InvalidGhostRatio(r) => write!(f, "invalid ghost ratio {}", *r),
         }
     }
+}
+
+unsafe fn swap_value<K, V>(v: &mut V, ent: &mut EntryNode<K, V>) {
+    mem::swap(v, &mut (*(*ent).val.as_mut_ptr()) as &mut V);
 }

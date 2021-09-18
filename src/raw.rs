@@ -253,11 +253,7 @@ impl<K: Hash + Eq, V, E: OnEvictCallback, S: BuildHasher> RawLRU<K, V, E, S> {
 
         match node_ptr {
             Some(node_ptr) => {
-                // if the key is already in the cache just update its value and move it to the
-                // front of the list
-                unsafe { mem::swap(&mut v, &mut (*(*node_ptr).val.as_mut_ptr()) as &mut V) }
-                self.detach(node_ptr);
-                self.attach(node_ptr);
+                self.update(&mut v, node_ptr);
                 PutResult::Update(v)
             }
             None => self.put_in(k, v),
@@ -413,7 +409,7 @@ impl<K: Hash + Eq, V, E: OnEvictCallback, S: BuildHasher> RawLRU<K, V, E, S> {
     /// assert_eq!(cache.peek(&1), Some(&"a"));
     /// assert_eq!(cache.peek(&2), Some(&"b"));
     /// ```
-    pub fn peek<Q>(&self, k: &Q) -> Option<&V>
+    pub fn peek<'a, Q>(&'_ self, k: &'a Q) -> Option<&'a V>
     where
         KeyRef<K>: Borrow<Q>,
         Q: Hash + Eq + ?Sized,
@@ -1089,6 +1085,15 @@ impl<K: Hash + Eq, V, E: OnEvictCallback, S: BuildHasher> RawLRU<K, V, E, S> {
             self.map.insert(KeyRef { k: keyref }, bks);
             PutResult::Put
         }
+    }
+
+    #[inline]
+    pub(crate) fn update(&mut self, v: &mut V, ent_ptr: *mut EntryNode<K, V>) {
+        // if the key is already in the cache just update its value and move it to the
+        // front of the list
+        unsafe { mem::swap(v, &mut (*(*ent_ptr).val.as_mut_ptr()) as &mut V) }
+        self.detach(ent_ptr);
+        self.attach(ent_ptr);
     }
 
     #[inline]

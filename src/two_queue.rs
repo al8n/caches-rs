@@ -408,8 +408,15 @@ impl<K: Hash + Eq, V, RH: BuildHasher, FH: BuildHasher, GH: BuildHasher>
 
         // Check if the value is frequently used already,
         // and just update the value
-        if self.frequent.contains(&key_ref) {
-            return self.frequent.put(k, v);
+        match self.frequent.map.get_mut(&key_ref).map(|node| {
+            let node_ptr: *mut EntryNode<K, V> = &mut **node;
+            node_ptr
+        }) {
+            None => {}
+            Some(ent_ptr) => {
+                self.frequent.update(&mut v, ent_ptr);
+                return PutResult::Update(v);
+            }
         }
 
         // Check if the value is recently used, and promote
@@ -647,7 +654,8 @@ impl<K: Hash + Eq, V, RH: BuildHasher, FH: BuildHasher, GH: BuildHasher>
     {
         self.frequent
             .remove(k)
-            .or_else(|| self.recent.remove(k).or_else(|| self.ghost.remove(k)))
+            .or_else(|| self.recent.remove(k))
+            .or_else(|| self.ghost.remove(k))
     }
 
     /// Returns a bool indicating whether the given key is in the cache. Does not update the
@@ -865,7 +873,10 @@ mod test {
         assert_eq!(cache.frequent.len(), 1, "bad: {}", cache.frequent.len());
 
         // Add 6, should cause another recent evict
-        assert_eq!(format!("{:?}", cache.put(6, 6).clone()), format!("{:?}", PutResult::<i32, i32>::Put));
+        assert_eq!(
+            format!("{:?}", cache.put(6, 6).clone()),
+            format!("{:?}", PutResult::<i32, i32>::Put)
+        );
         assert_eq!(cache.recent.len(), 3, "bad: {}", cache.recent.len());
         assert_eq!(cache.ghost.len(), 2, "bad: {}", cache.ghost.len());
         assert_eq!(cache.frequent.len(), 1, "bad: {}", cache.frequent.len());
@@ -877,7 +888,10 @@ mod test {
         assert_eq!(cache.frequent.len(), 1, "bad: {}", cache.frequent.len());
 
         // Add 2, should evict an entry from ghost LRU
-        assert_eq!(format!("{:?}", cache.put(2, 11).clone()), format!("{:?}", PutResult::Evicted { key: 3, value: 3 }));
+        assert_eq!(
+            format!("{:?}", cache.put(2, 11).clone()),
+            format!("{:?}", PutResult::Evicted { key: 3, value: 3 })
+        );
         assert_eq!(cache.recent.len(), 3, "bad: {}", cache.recent.len());
         assert_eq!(cache.ghost.len(), 2, "bad: {}", cache.ghost.len());
         assert_eq!(cache.frequent.len(), 1, "bad: {}", cache.frequent.len());
@@ -894,7 +908,10 @@ mod test {
         assert_eq!(cache.ghost.len(), 2, "bad: {}", cache.ghost.len());
         assert_eq!(cache.frequent.len(), 3, "bad: {}", cache.frequent.len());
 
-        assert_eq!(format!("{:?}", cache.put(7, 77)), format!("{:?}", PutResult::<i32, i32>::Update(7)));
+        assert_eq!(
+            format!("{:?}", cache.put(7, 77)),
+            format!("{:?}", PutResult::<i32, i32>::Update(7))
+        );
         assert_eq!(cache.recent.len(), 0, "bad: {}", cache.recent.len());
         assert_eq!(cache.ghost.len(), 2, "bad: {}", cache.ghost.len());
         assert_eq!(cache.frequent.len(), 4, "bad: {}", cache.frequent.len());
@@ -903,10 +920,13 @@ mod test {
         // entry
         assert_eq!(
             format!("{:?}", cache.put(6, 66).clone()),
-            format!("{:?}", PutResult::EvictedAndUpdate {
-                evicted: (5, 5),
-                update: 6
-            })
+            format!(
+                "{:?}",
+                PutResult::EvictedAndUpdate {
+                    evicted: (5, 5),
+                    update: 6
+                }
+            )
         );
         assert_eq!(cache.recent.len(), 0, "bad: {}", cache.recent.len());
         assert_eq!(cache.ghost.len(), 1, "bad: {}", cache.ghost.len());

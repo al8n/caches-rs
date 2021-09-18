@@ -1,6 +1,6 @@
-use crate::{
-    CacheError, DefaultEvictCallback, DefaultHashBuilder, PutResult, RawLRU, TwoQueueCacheBuilder,
-};
+use crate::raw::EntryNode;
+use crate::{swap_value, CacheError, DefaultEvictCallback, DefaultHashBuilder, KeyRef, RawLRU};
+use core::borrow::Borrow;
 use core::hash::{BuildHasher, Hash};
 
 /// `AdaptiveCacheBuilder` is used to help build a [`AdaptiveCache`] with custom configuration.
@@ -262,7 +262,604 @@ impl<K: Hash + Eq, V, RH: BuildHasher, REH: BuildHasher, FH: BuildHasher, FEH: B
 
     /// Puts a key-value pair to the cache.
     ///
-    pub fn put(&mut self, k: K, v: V) -> PutResult<K, V> {
-        PutResult::Put
+    pub fn put(&mut self, k: K, mut v: V) {
+        let key_ref = KeyRef { k: &k };
+        // check if the value is contained in recent, and potentially
+        // promote it to frequent
+        if self.recent.contains(&key_ref) {
+            let mut ent = self.recent.map.remove(&key_ref).unwrap();
+            let ent_ptr = ent.as_mut();
+            self.recent.detach(ent_ptr);
+
+            unsafe {
+                swap_value(&mut v, ent_ptr);
+            }
+
+            self.frequent.put_box(ent);
+            return;
+        }
+
+        // check if the value is already in frequent and update it
+        match self.frequent.map.get_mut(&key_ref).map(|node| {
+            let node_ptr: *mut EntryNode<K, V> = &mut **node;
+            node_ptr
+        }) {
+            None => {}
+            Some(ent_ptr) => {
+                self.frequent.update(&mut v, ent_ptr);
+                return;
+            }
+        }
+
+        let recent_len = self.recent.len();
+        let freq_len = self.frequent.len();
+        let recent_evict_len = self.recent_evict.len();
+        let freq_evict_len = self.frequent_evict.len();
+
+        // check if this value was recently evicted as part of the
+        // recently used list
+        if self.recent_evict.contains(&key_ref) {
+            // freq set is too small, increase P appropriately
+            let mut delta = 1usize;
+
+            if freq_evict_len > recent_evict_len {
+                delta = freq_evict_len / recent_evict_len;
+            }
+
+            if self.p + delta >= self.size {
+                self.p = self.size;
+            } else {
+                self.p += delta;
+            }
+
+            // potentially need to make room in the cache
+            if self.recent.len() + self.frequent.len() >= self.size {
+                self.replace(false);
+            }
+
+            // remove from recent evict
+            let mut ent = self.recent_evict.map.remove(&key_ref).unwrap();
+            let ent_ptr = ent.as_mut();
+            self.recent_evict.detach(ent_ptr);
+            unsafe {
+                swap_value(&mut v, ent_ptr);
+            }
+
+            // add the key to the frequently used list
+            self.frequent.put_box(ent);
+
+            return;
+        }
+
+        // Check if this value was recently evicted as part of the
+        // frequently used list
+        if self.frequent_evict.map.contains_key(&key_ref) {
+            // frequent set is too small, decrease P appropriately
+            let mut delta = 1usize;
+            if recent_evict_len > freq_evict_len {
+                delta = recent_evict_len / freq_evict_len;
+            }
+
+            if delta >= self.p {
+                self.p = 0;
+            } else {
+                self.p -= delta;
+            }
+
+            // Potentially need to make room in the cache
+            if recent_len + freq_len >= self.size {
+                self.replace(true);
+            }
+
+            // remove from frequent evict
+            let mut ent = self.frequent_evict.map.remove(&key_ref).unwrap();
+            let ent_ptr = ent.as_mut();
+            self.frequent_evict.detach(ent_ptr);
+
+            unsafe {
+                swap_value(&mut v, ent_ptr);
+            }
+
+            // add the key to the frequently used list
+            self.frequent.put_box(ent);
+
+            return;
+        }
+
+        // Potentially need to make room in the cache
+        if recent_len + freq_len >= self.size {
+            self.replace(false);
+        }
+
+        // Keep the size of the ghost buffers trim
+        if recent_evict_len > self.size - self.p {
+            self.recent_evict.remove_lru();
+        }
+
+        if freq_evict_len > self.p {
+            self.frequent_evict.remove_lru();
+        }
+
+        // Add to the recently seen list
+        self.recent.put(k, v);
+    }
+
+    /// Returns a mutable reference to the value of the key in the cache or `None` if it
+    /// is not present in the cache. Moves the key to the head of the LRU list if it exists.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use hashicorp_lru::AdaptiveCache;
+    /// let mut cache = AdaptiveCache::new(2).unwrap();
+    ///
+    /// cache.put("apple", 8);
+    /// cache.put("banana", 4);
+    /// cache.put("banana", 6);
+    /// cache.put("pear", 2);
+    ///
+    /// assert_eq!(cache.get(&"banana"), Some(&6));
+    /// ```
+    pub fn get<'a, Q>(&mut self, k: &'a Q) -> Option<&'a V>
+    where
+        KeyRef<K>: Borrow<Q>,
+        Q: Hash + Eq + ?Sized,
+    {
+        // If the value is contained in recent, then
+        // promote it to frequent
+        self.recent
+            .peek(k)
+            .and_then(|v| {
+                let mut ent = self.recent.map.remove(k).unwrap();
+                let ent_ptr = ent.as_mut();
+                self.recent.detach(ent_ptr);
+                self.frequent.put_box(ent);
+                Some(v)
+            })
+            .or_else(|| self.frequent.get(k))
+    }
+
+    /// Returns a mutable reference to the value of the key in the cache or `None` if it
+    /// is not present in the cache. Moves the key to the head of the LRU list if it exists.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use hashicorp_lru::AdaptiveCache;
+    /// let mut cache = AdaptiveCache::new(2).unwrap();
+    ///
+    /// cache.put("apple", 8);
+    /// cache.put("banana", 4);
+    /// cache.put("banana", 6);
+    /// cache.put("pear", 2);
+    ///
+    /// assert_eq!(cache.get_mut(&"apple"), None);
+    /// assert_eq!(cache.get_mut(&"banana"), Some(&mut 6));
+    /// assert_eq!(cache.get_mut(&"pear"), Some(&mut 2));
+    /// ```
+    pub fn get_mut<'a, Q>(&mut self, k: &'a Q) -> Option<&'a mut V>
+    where
+        KeyRef<K>: Borrow<Q>,
+        Q: Hash + Eq + ?Sized,
+    {
+        // If the value is contained in recent, then
+        // promote it to frequent
+        self.recent
+            .peek_mut(k)
+            .and_then(|v| {
+                let mut ent = self.recent.map.remove(k).unwrap();
+                let ent_ptr = ent.as_mut();
+                self.recent.detach(ent_ptr);
+                self.frequent.put_box(ent);
+                Some(v)
+            })
+            .or_else(|| self.frequent.get_mut(k))
+    }
+
+    /// Returns a reference to the value corresponding to the key in the cache or `None` if it is
+    /// not present in the cache. Unlike `get`, `peek` does not update the LRU list so the key's
+    /// position will be unchanged.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use hashicorp_lru::AdaptiveCache;
+    /// let mut cache = AdaptiveCache::new(2).unwrap();
+    ///
+    /// cache.put(1, "a");
+    /// cache.put(2, "b");
+    ///
+    /// assert_eq!(cache.peek(&1), Some(&"a"));
+    /// assert_eq!(cache.peek(&2), Some(&"b"));
+    /// ```
+    pub fn peek<'a, Q>(&'_ self, k: &'a Q) -> Option<&'a V>
+    where
+        KeyRef<K>: Borrow<Q>,
+        Q: Hash + Eq + ?Sized,
+    {
+        self.recent.peek(k).or_else(|| self.frequent.peek(k))
+    }
+
+    /// Returns a mutable reference to the value corresponding to the key in the cache or `None`
+    /// if it is not present in the cache. Unlike `get_mut`, `peek_mut` does not update the LRU
+    /// list so the key's position will be unchanged.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use hashicorp_lru::AdaptiveCache;
+    /// let mut cache = AdaptiveCache::new(2).unwrap();
+    ///
+    /// cache.put(1, "a");
+    /// cache.put(2, "b");
+    ///
+    /// assert_eq!(cache.peek_mut(&1), Some(&mut "a"));
+    /// assert_eq!(cache.peek_mut(&2), Some(&mut "b"));
+    /// ```
+    pub fn peek_mut<'a, Q>(&mut self, k: &'a Q) -> Option<&'a mut V>
+    where
+        KeyRef<K>: Borrow<Q>,
+        Q: Hash + Eq + ?Sized,
+    {
+        self.recent
+            .peek_mut(k)
+            .or_else(|| self.frequent.peek_mut(k))
+    }
+
+    /// Returns a bool indicating whether the given key is in the cache.
+    /// Does not update the LRU list.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use hashicorp_lru::AdaptiveCache;
+    /// let mut cache = AdaptiveCache::new(2).unwrap();
+    ///
+    /// cache.put(1, "a");
+    /// cache.put(2, "b");
+    /// cache.put(3, "c");
+    ///
+    /// assert!(!cache.contains(&1));
+    /// assert!(cache.contains(&2));
+    /// assert!(cache.contains(&3));
+    /// ```
+    pub fn contains<Q>(&self, k: &Q) -> bool
+    where
+        KeyRef<K>: Borrow<Q>,
+        Q: Hash + Eq + ?Sized,
+    {
+        self.recent.contains(k) || self.frequent.contains(k)
+    }
+
+    /// Removes and returns the value corresponding to the key from the cache or
+    /// `None` if it does not exist.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use hashicorp_lru::AdaptiveCache;
+    /// let mut cache = AdaptiveCache::new(2).unwrap();
+    ///
+    /// cache.put(2, "a");
+    ///
+    /// assert_eq!(cache.remove(&1), None);
+    /// assert_eq!(cache.remove(&2), Some("a"));
+    /// assert_eq!(cache.remove(&2), None);
+    /// assert_eq!(cache.len(), 0);
+    /// ```
+    pub fn remove<Q>(&mut self, k: &Q) -> Option<V>
+    where
+        KeyRef<K>: Borrow<Q>,
+        Q: Hash + Eq + ?Sized,
+    {
+        self.recent
+            .remove(k)
+            .or_else(|| self.frequent.remove(k))
+            .or_else(|| self.recent_evict.remove(k))
+            .or_else(|| self.frequent_evict.remove(k))
+    }
+
+    /// Clears the contents of the cache.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use hashicorp_lru::AdaptiveCache;
+    /// let mut cache: AdaptiveCache<isize, &str> = AdaptiveCache::new(2).unwrap();
+    /// assert_eq!(cache.len(), 0);
+    ///
+    /// cache.put(1, "a");
+    /// assert_eq!(cache.len(), 1);
+    ///
+    /// cache.put(2, "b");
+    /// assert_eq!(cache.len(), 2);
+    ///
+    /// cache.purge();
+    /// assert_eq!(cache.len(), 0);
+    /// ```
+    pub fn purge(&mut self) {
+        self.recent.purge();
+        self.frequent.purge();
+        self.recent_evict.purge();
+        self.frequent_evict.purge();
+    }
+
+    /// Returns the number of key-value pairs that are currently in the the cache.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use hashicorp_lru::AdaptiveCache;
+    /// let mut cache = AdaptiveCache::new(2).unwrap();
+    /// assert_eq!(cache.len(), 0);
+    ///
+    /// cache.put(1, "a");
+    /// assert_eq!(cache.len(), 1);
+    ///
+    /// cache.put(2, "b");
+    /// assert_eq!(cache.len(), 2);
+    ///
+    /// cache.put(3, "c");
+    /// assert_eq!(cache.len(), 2);
+    /// ```
+    pub fn len(&self) -> usize {
+        self.recent.len() + self.frequent.len()
+    }
+
+    /// Returns the maximum number of key-value pairs the cache can hold.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use hashicorp_lru::AdaptiveCache;
+    /// let mut cache: AdaptiveCache<isize, &str> = AdaptiveCache::new(2).unwrap();
+    /// assert_eq!(cache.cap(), 2);
+    /// ```
+    pub fn cap(&self) -> usize {
+        self.size
+    }
+
+    /// replace is used to adaptively evict from either recent or frequent
+    /// based on the current learned value of P
+    fn replace(&mut self, freq_contains_key: bool) {
+        let recent_evict_len = self.recent.len();
+        if recent_evict_len > 0
+            && (recent_evict_len > self.p || (recent_evict_len == self.p && freq_contains_key))
+        {
+            match self.recent.remove_lru_in() {
+                None => None,
+                Some(ent) => Some(self.recent_evict.put_box(ent)),
+            };
+        } else {
+            match self.frequent.remove_lru_in() {
+                None => None,
+                Some(ent) => Some(self.frequent_evict.put_box(ent)),
+            };
+        }
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use crate::AdaptiveCache;
+    use alloc::vec::Vec;
+    use rand::{thread_rng, Rng};
+    use rand::seq::SliceRandom;
+
+    #[test]
+    fn test_arc_cache_random_ops() {
+        let size = 128;
+        let mut rng = thread_rng();
+        let mut cases: Vec<u64> = (0..200_000).collect();
+        cases.shuffle(&mut rng);
+
+        let mut cache = AdaptiveCache::new(size).unwrap();
+
+        (0..200_000).for_each(|i| {
+            let k = rng.gen::<i64>() % 512;
+            let r: i64 = rng.gen();
+
+            match r % 3 {
+                0 => {
+                    let _ = cache.put(k, k);
+                }
+                1 => {
+                    let _ = cache.get(&k);
+                }
+                2 => {
+                    let _ = cache.remove(&k);
+                }
+                _ => {}
+            }
+
+            assert!(
+                cache.recent.len() + cache.frequent.len() <= size,
+                "idx: {}, bad: recent: {} freq: {}",
+                i,
+                cache.recent.len(),
+                cache.frequent.len()
+            )
+        })
+    }
+
+
+    #[test]
+    fn test_arc_get_recent_to_frequent() {
+        let mut cache = AdaptiveCache::new(128).unwrap();
+
+        // Touch all the entries, should be in recent
+        (0..128).for_each(|i| cache.put(i, i));
+        assert_eq!(cache.recent.len(), 128);
+        assert_eq!(cache.frequent.len(), 0);
+
+        // Get should upgrade to t2
+        (0..128).for_each(|i| {
+            assert_ne!(cache.get(&i), None);
+        });
+        assert_eq!(cache.recent.len(), 0);
+        assert_eq!(cache.frequent.len(), 128);
+
+        // Get be from t2
+        (0..128).for_each(|i| {
+            assert_ne!(cache.get(&i), None);
+        });
+        assert_eq!(cache.recent.len(), 0);
+        assert_eq!(cache.frequent.len(), 128);
+    }
+
+    #[test]
+    fn test_arc_add_recent_to_freq() {
+        let mut cache = AdaptiveCache::new(128).unwrap();
+
+        // Add initially to recent
+        cache.put(1, 1);
+        assert_eq!(cache.recent.len(), 1);
+        assert_eq!(cache.frequent.len(), 0);
+
+        // Add should upgrade to frequent
+        cache.put(1, 1);
+        assert_eq!(cache.recent.len(), 0);
+        assert_eq!(cache.frequent.len(), 1);
+
+        // Add should remain to frequent
+        cache.put(1, 1);
+        assert_eq!(cache.recent.len(), 0);
+        assert_eq!(cache.frequent.len(), 1);
+    }
+
+    #[test]
+    fn test_arc_adaptive() {
+        let mut cache = AdaptiveCache::new(4).unwrap();
+
+        // fill recent
+        (0..4).for_each(|i| cache.put(i, i));
+        assert_eq!(cache.recent.len(), 4);
+
+        // move to frequent
+        cache.get(&0);
+        cache.get(&1);
+        assert_eq!(cache.frequent.len(), 2);
+
+        // evict from recent
+        cache.put(4, 4);
+        assert_eq!(cache.recent_evict.len(), 1);
+
+        // current state
+        // recent : (MRU) [4, 3] (LRU)
+        // frequent : (MRU) [1, 0] (LRU)
+        // recent_evict : (MRU) [2] (LRU)
+        // frequent_evict : (MRU) [] (LRU)
+
+        // Add 2, should cause hit on recent_evict
+        cache.put(2, 2);
+        assert_eq!(cache.recent_evict.len(), 1);
+        assert_eq!(cache.p, 1);
+        assert_eq!(cache.frequent.len(), 3);
+
+        // Current state
+        // t1 : (MRU) [4] (LRU)
+        // t2 : (MRU) [2, 1, 0] (LRU)
+        // b1 : (MRU) [3] (LRU)
+        // b2 : (MRU) [] (LRU)
+
+        // Add 4, should migrate to frequent
+        cache.put(4, 4);
+        assert_eq!(cache.recent.len(), 0);
+        assert_eq!(cache.frequent.len(), 4);
+
+        // Current state
+        // t1 : (MRU) [] (LRU)
+        // t2 : (MRU) [4, 2, 1, 0] (LRU)
+        // b1 : (MRU) [3] (LRU)
+        // b2 : (MRU) [] (LRU)
+
+        // Add 5, should evict to b2
+        cache.put(5, 5);
+        assert_eq!(cache.recent.len(), 1);
+        assert_eq!(cache.frequent.len(), 3);
+        assert_eq!(cache.frequent_evict.len(), 1);
+
+        // Current state
+        // t1 : (MRU) [5] (LRU)
+        // t2 : (MRU) [4, 2, 1] (LRU)
+        // b1 : (MRU) [3] (LRU)
+        // b2 : (MRU) [0] (LRU)
+
+        // Add 0, should decrease p
+        cache.put(0, 0);
+        assert_eq!(cache.recent.len(), 0);
+        assert_eq!(cache.frequent.len(), 4);
+        assert_eq!(cache.recent_evict.len(), 2);
+        assert_eq!(cache.frequent_evict.len(), 0);
+        assert_eq!(cache.p, 0);
+
+        // Current state
+        // t1 : (MRU) [] (LRU)
+        // t2 : (MRU) [0, 4, 2, 1] (LRU)
+        // b1 : (MRU) [5, 3] (LRU)
+        // b2 : (MRU) [0] (LRU)
+    }
+
+    #[test]
+    fn test_arc() {
+        let mut cache = AdaptiveCache::new(128).unwrap();
+
+        (0..256).for_each(|i| cache.put(i, i));
+        assert_eq!(cache.len(), 128);
+
+        let rst = cache
+            .frequent
+            .keys_lru()
+            .chain(cache.recent.keys_lru())
+            .enumerate()
+            .map(|(idx, k)| (idx as u64, *k))
+            .collect::<Vec<(u64, u64)>>();
+
+        rst.into_iter().for_each(|(idx, k)| match cache.get(&k) {
+            None => panic!("bad: {}", k),
+            Some(val) => assert_eq!(*val, idx + 128),
+        });
+
+        (0..128).for_each(|k| {
+            assert_eq!(cache.get(&k), None);
+        });
+
+        (128..256).for_each(|k| {
+            assert_ne!(cache.get(&k), None);
+        });
+
+        (128..192).for_each(|k| {
+            cache.remove(&k);
+            assert_eq!(cache.get(&k), None);
+        });
+
+        cache.purge();
+        assert_eq!(cache.len(), 0);
+        assert_eq!(cache.get(&200), None);
+    }
+
+    #[test]
+    fn test_2q_cache_contains() {
+        let mut cache = AdaptiveCache::new(2).unwrap();
+        cache.put(1, 1);
+        cache.put(2, 2);
+
+        assert!(cache.contains(&1));
+        cache.put(3, 3);
+        assert!(
+            !cache.contains(&1),
+            "should be in ghost LRU, and the elements in the ghost is not counted as in cache"
+        );
+    }
+
+    #[test]
+    fn test_arc_peek() {
+        let mut cache = AdaptiveCache::new(2).unwrap();
+        cache.put(1, 1);
+        cache.put(2, 2);
+
+        assert_eq!(cache.peek(&1), Some(&1));
+        cache.put(3, 3);
+        assert!(!cache.contains(&1));
     }
 }
