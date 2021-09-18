@@ -1,4 +1,4 @@
-use criterion::{black_box, criterion_group, criterion_main, BatchSize, BenchmarkId, Criterion};
+use criterion::{black_box, criterion_group, criterion_main, BatchSize, Criterion};
 use fnv::FnvBuildHasher;
 use hashicorp_lru::LRUCache;
 use rand::{thread_rng, Rng};

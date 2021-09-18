@@ -15,13 +15,16 @@ path = "examples/lru_cache.rs"
 [dependencies]
 hashbrown = {version = "0.11.2", optional = true}
 
-
-#[[bench]]
-#name = "two_queue_cache"
-#harness = false
-
 [[bench]]
 name = "lru_cache"
+harness = false
+
+[[bench]]
+name = "two_queue_cache"
+harness = false
+
+[[bench]]
+name = "arc_cache"
 harness = false
 
 [dev-dependencies]

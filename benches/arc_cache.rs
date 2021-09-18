@@ -3,10 +3,10 @@ use fnv::FnvBuildHasher;
 use rand::{thread_rng, Rng};
 use rustc_hash::FxHasher;
 use std::hash::BuildHasherDefault;
-use hashicorp_lru::{TwoQueueCache, TwoQueueCacheBuilder};
+use hashicorp_lru::{AdaptiveCache, AdaptiveCacheBuilder};
 
-fn bench_two_queue_cache_default_hasher(c: &mut Criterion) {
-    c.bench_function("Test TwoQueueCache freq default hasher", move |b| {
+fn bench_arc_cache_default_hasher(c: &mut Criterion) {
+    c.bench_function("Test AdaptiveCache freq default hasher", move |b| {
         let cases = 1000_000;
         b.iter_batched(
             || {
@@ -22,7 +22,7 @@ fn bench_two_queue_cache_default_hasher(c: &mut Criterion) {
                         })
                         .collect(),
                 );
-                let l = TwoQueueCache::new(8192).unwrap();
+                let l = AdaptiveCache::new(8192).unwrap();
                 (l, nums)
             },
             |(mut l, nums)| {
@@ -41,8 +41,8 @@ fn bench_two_queue_cache_default_hasher(c: &mut Criterion) {
     });
 }
 
-fn bench_two_queue_cache_fx_hasher(c: &mut Criterion) {
-    c.bench_function("Test TwoQueueCache freq FX hasher", move |b| {
+fn bench_arc_cache_fx_hasher(c: &mut Criterion) {
+    c.bench_function("Test AdaptiveCache freq FX hasher", move |b| {
         let cases = 1000_000;
         b.iter_batched(
             || {
@@ -59,12 +59,13 @@ fn bench_two_queue_cache_fx_hasher(c: &mut Criterion) {
                         .collect(),
                 );
 
-                let builder = TwoQueueCacheBuilder::new(8192)
+                let builder = AdaptiveCacheBuilder::new(8192)
                     .set_recent_hasher(BuildHasherDefault::<FxHasher>::default())
                     .set_frequent_hasher(BuildHasherDefault::<FxHasher>::default())
-                    .set_ghost_hasher(BuildHasherDefault::<FxHasher>::default());
+                    .set_recent_evict_hasher(BuildHasherDefault::<FxHasher>::default())
+                    .set_frequent_evict_hasher(BuildHasherDefault::<FxHasher>::default());
                 let l =
-                    TwoQueueCache::from_builder(builder).unwrap();
+                    AdaptiveCache::from_builder(builder).unwrap();
                 (l, nums)
             },
             |(mut l, nums)| {
@@ -83,8 +84,8 @@ fn bench_two_queue_cache_fx_hasher(c: &mut Criterion) {
     });
 }
 
-fn bench_two_queue_cache_fnv_hasher(c: &mut Criterion) {
-    c.bench_function("Test TwoQueueCache freq FNV hasher", move |b| {
+fn bench_arc_cache_fnv_hasher(c: &mut Criterion) {
+    c.bench_function("Test AdaptiveCache freq FNV hasher", move |b| {
         let cases = 1000_000;
         b.iter_batched(
             || {
@@ -100,12 +101,13 @@ fn bench_two_queue_cache_fnv_hasher(c: &mut Criterion) {
                         })
                         .collect(),
                 );
-                let builder = TwoQueueCacheBuilder::new(8192)
+                let builder = AdaptiveCacheBuilder::new(8192)
                     .set_recent_hasher(FnvBuildHasher::default())
                     .set_frequent_hasher(FnvBuildHasher::default())
-                    .set_ghost_hasher(FnvBuildHasher::default());
+                    .set_recent_evict_hasher(FnvBuildHasher::default())
+                    .set_frequent_evict_hasher(FnvBuildHasher::default());
                 let l =
-                    TwoQueueCache::from_builder(builder).unwrap();
+                    AdaptiveCache::from_builder(builder).unwrap();
                 (l, nums)
             },
             |(mut l, nums)| {
@@ -125,10 +127,10 @@ fn bench_two_queue_cache_fnv_hasher(c: &mut Criterion) {
 }
 
 criterion_group!(
-    two_queue_cache,
-    bench_two_queue_cache_default_hasher,
-    bench_two_queue_cache_fx_hasher,
-    bench_two_queue_cache_fnv_hasher
+    arc_cache,
+    bench_arc_cache_default_hasher,
+    bench_arc_cache_fx_hasher,
+    bench_arc_cache_fnv_hasher
 );
 
-criterion_main!(two_queue_cache);
+criterion_main!(arc_cache);
