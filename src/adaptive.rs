@@ -172,10 +172,13 @@ impl<RH: BuildHasher, REH: BuildHasher, FH: BuildHasher, FEH: BuildHasher>
 /// ARC is an enhancement over the standard LRU cache in that tracks both
 /// frequency and recency of use. This avoids a burst in access to new
 /// entries from evicting the frequently used older entries. It adds some
-/// additional tracking overhead to a standard LRU cache, computationally
-/// it is roughly 2x the cost, and the extra memory overhead is linear
+/// additional tracking overhead to a [`RawLRU`] cache with default evict callback policy, computationally
+/// it is roughly **2x** the cost, and the extra memory overhead is linear
 /// with the size of the cache. ARC has been patented by IBM, but is
-/// similar to the `TwoQueueCache` (2Q) which requires setting parameters.
+/// similar to the [`TwoQueueCache`] (2Q) which requires setting parameters.
+///
+/// [`RawLRU`]: struct.RawLRU.html
+/// [`TwoQueueCache`]: struct.TwoQueueCache.html
 pub struct AdaptiveCache<
     K,
     V,

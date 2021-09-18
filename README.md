@@ -5,6 +5,10 @@
 
 This is a Rust implementation for [HashiCorp's golang-lru](https://github.com/hashicorp/golang-lru).
 
+This crate contains three LRU based cache, `LRUCache`, `TwoQueueCache` and `AdaptiveCache`. 
+
+See [Introduction](#introduction), [Trade-Off](#trade-off) and [Usages](#usages) for more details.
+
 English | [简体中文](README-zh_CN.md)
 
 [<img alt="github" src="https://img.shields.io/badge/GITHUB-hashicorp--lru-8da0cb?style=for-the-badge&logo=Github" height="22">][Github-url]
@@ -19,6 +23,37 @@ English | [简体中文](README-zh_CN.md)
 
 
 </div>
+
+## Introduction
+LRU based caches are `O(1)` for read, write and delete.
+
+- `LRUCache` or `RawLRU` is a fixed size LRU cache.
+
+
+- `AdaptiveCache` is a fixed size Adaptive Replacement Cache (ARC).
+  ARC is an enhancement over the standard LRU cache in that tracks both
+  frequency and recency of use. This avoids a burst in access to new
+  entries from evicting the frequently used older entries.
+
+
+- `TwoQueueCache` is a fixed size 2Q cache. 2Q is an enhancement over the standard LRU cache in that it tracks both frequently and recently used entries separately.
+
+## Trade-Off
+In theory, `AdaptiveCache` and `TwoQueueCache` add some additional tracking overhead to a `LRUCache` cache, computationally it is roughly **2x** the cost, and the extra memory overhead is linear with the size of the cache. `AdaptiveCache` and `TwoQueueCache` have similar computationally cost, which has been patented by IBM, but the `TwoQueueCache` (2Q) need to set reasonable parameters.
+
+However, the implementation for the `RawLRU` uses [`Box`] and a raw pointer for each entry to break the limitation of the Rust language (It does not use [`Rc`], because [`Rc`] is slower). Thus, in practice, `TwoQueueCache` is **2.5x** computationally slower than `LRUCache` and `AdaptiveCache` is **3x** computationally slower than `LRUCache`, because `TwoQueueCache` and `AdaptiveCache` has to do more box and re-box than `LRUCache`, even though I try my best to avoid boxing and re-boxing and use [`mem::swap`] to avoid memory allocating and deallocating.
+
+Hence, it is better to understand what is the situation is, (your project wants a higher hit ratio or faster computationally performance), and then choose the reasonable Cache in your project.
+
+(For more performance details, you can clone the project and run `cargo bench`. The source code for benchmark is in the [benches](benches), I am also looking forward to anyone's help for writing more reasonable test cases for benchmark).
+
+## Usages
+
+
+## Acknowledgments
+- The implementation of `RawLRU` is highly inspired by [Jerome Froelich's LRU implementation](https://github.com/jeromefroe/lru-rs) and [`std::collections`] library of Rust.
+
+- Thanks for [HashiCorp's golang-lru](https://github.com/hashicorp/golang-lru) providing the amazing Go implementation.
 
 #### License
 
@@ -35,6 +70,10 @@ for inclusion in this project by you, as defined in the Apache-2.0 license,
 shall be dual licensed as above, without any additional terms or conditions.
 </sub>
 
+[`Rc`]: https://doc.rust-lang.org/std/rc/struct.Rc.html
+[`Box`]: https://doc.rust-lang.org/std/boxed/struct.Box.html
+[`mem::swap`]: https://doc.rust-lang.org/stable/std/mem/fn.swap.html
+[`std::collections`]: https://doc.rust-lang.org/stable/std/collections/
 [Github-url]: https://github.com/al8n/hashicorp-lru/
 [CI-url]: https://github.com/al8n/hashicorp-lru/actions/workflows/ci.yml
 [codecov-url]: https://codecov.io/gh/al8n/hashicorp-lru

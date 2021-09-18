@@ -11,13 +11,13 @@ fn bench_arc_cache_default_hasher(c: &mut Criterion) {
         b.iter_batched(
             || {
                 let mut rng = thread_rng();
-                let nums: Vec<i64> = black_box(
+                let nums: Vec<u64> = black_box(
                     (0..(cases * 2))
                         .map(|i| {
                             if i % 2 == 0 {
-                                rng.gen::<i64>() % 16384
+                                rng.gen::<u64>() % 16384
                             } else {
-                                rng.gen::<i64>() % 32768
+                                rng.gen::<u64>() % 32768
                             }
                         })
                         .collect(),
@@ -47,13 +47,13 @@ fn bench_arc_cache_fx_hasher(c: &mut Criterion) {
         b.iter_batched(
             || {
                 let mut rng = thread_rng();
-                let nums: Vec<i64> = black_box(
+                let nums: Vec<u64> = black_box(
                     (0..(cases * 2))
                         .map(|i| {
                             if i % 2 == 0 {
-                                rng.gen::<i64>() % 16384
+                                rng.gen::<u64>() % 16384
                             } else {
-                                rng.gen::<i64>() % 32768
+                                rng.gen::<u64>() % 32768
                             }
                         })
                         .collect(),
@@ -90,13 +90,13 @@ fn bench_arc_cache_fnv_hasher(c: &mut Criterion) {
         b.iter_batched(
             || {
                 let mut rng = thread_rng();
-                let nums: Vec<i64> = black_box(
+                let nums: Vec<u64> = black_box(
                     (0..(cases * 2))
                         .map(|i| {
                             if i % 2 == 0 {
-                                rng.gen::<i64>() % 16384
+                                rng.gen::<u64>() % 16384
                             } else {
-                                rng.gen::<i64>() % 32768
+                                rng.gen::<u64>() % 32768
                             }
                         })
                         .collect(),

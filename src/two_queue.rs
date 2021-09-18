@@ -213,10 +213,13 @@ impl<RH: BuildHasher, FH: BuildHasher, GH: BuildHasher> TwoQueueCacheBuilder<RH,
 /// in that it tracks both frequently and recently used
 /// entries separately. This avoids a burst in access to new
 /// entries from evicting frequently used entries. It adds some
-/// additional tracking overhead to the standard LRU cache, and is
-/// computationally about 2x the cost, and adds some metadata over
-/// head. The ARCCache is similar, but does not require setting any
+/// additional tracking overhead to the [`RawLRU`] cache, and is
+/// computationally about **2x** the cost, and adds some metadata over
+/// head. The [`AdaptiveCache`] is similar to the TwoQueueCache, but does not require setting any
 /// parameters.
+///
+/// [`RawLRU`]: struct.RawLRU.html
+/// [`AdaptiveCache`]: struct.AdaptiveCache.html
 pub struct TwoQueueCache<
     K: Hash + Eq,
     V,

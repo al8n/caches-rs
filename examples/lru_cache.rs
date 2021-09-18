@@ -5,4 +5,6 @@ fn main() {
 
     // put element
     cache.put(1, 1);
+
+
 }

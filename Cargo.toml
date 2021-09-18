@@ -1,19 +1,17 @@
 [package]
 name = "hashicorp-lru"
-version = "0.1.0"
+version = "0.1.5"
+authors = ["Al Liu <scygliu1@gmail.com>"]
+description = "This is a Rust implementation for HashiCorp's golang-lru. LRUCache, TwoQueueCache and AdaptiveReplacementCache"
+homepage = "https://github.com/al8n/hashicorp-lru"
+repository = "https://github.com/al8n/hashicorp-lru.git"
+documentation = "https://docs.rs/hashicorp-lru/"
+readme = "README.md"
+license = "MIT or Apache-2.0"
+keywords = ["lru", "cache", "2q", "arc-cache", "algorithms", "data-structures"]
+categories = ["lru", "cache", "2q", "arc-cache", "algorithms", "data-structures"]
 edition = "2018"
 
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
-[features]
-default = ["hashbrown"]
-nightly = ["hashbrown", "hashbrown/nightly"]
-
-[[example]]
-name = "lru_cache"
-path = "examples/lru_cache.rs"
-
-[dependencies]
-hashbrown = {version = "0.11.2", optional = true}
 
 [[bench]]
 name = "lru_cache"
@@ -26,6 +24,21 @@ harness = false
 [[bench]]
 name = "arc_cache"
 harness = false
+
+[[example]]
+name = "lru_cache"
+path = "examples/lru_cache.rs"
+
+[[example]]
+name = "hit_ratio"
+path = "examples/hit_ratio.rs"
+
+[features]
+default = ["hashbrown"]
+nightly = ["hashbrown", "hashbrown/nightly"]
+
+[dependencies]
+hashbrown = {version = "0.11.2", optional = true}
 
 [dev-dependencies]
 scoped_threadpool = "0.1.*"
