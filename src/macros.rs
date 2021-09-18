@@ -1,4 +1,5 @@
 #[macro_export]
+#[doc(hidden)]
 macro_rules! import_hashbrown {
     ($($t:ident),*) => {
         #[cfg(feature = "hashbrown")]
@@ -7,6 +8,7 @@ macro_rules! import_hashbrown {
 }
 
 #[macro_export]
+#[doc(hidden)]
 macro_rules! import_std {
     ($($t:ident),*) => {
         #[cfg(not(feature = "hashbrown"))]
@@ -15,6 +17,7 @@ macro_rules! import_std {
 }
 
 #[macro_export]
+#[doc(hidden)]
 macro_rules! cfg_not_nightly {
     ($($item:item)*) => {
         $(
@@ -26,6 +29,7 @@ macro_rules! cfg_not_nightly {
 }
 
 #[macro_export]
+#[doc(hidden)]
 macro_rules! cfg_nightly {
     ($($item:item)*) => {
         $(
@@ -37,6 +41,7 @@ macro_rules! cfg_nightly {
 }
 
 #[macro_export]
+#[doc(hidden)]
 macro_rules! cfg_nightly_hidden_doc {
     ($($item:item)*) => {
         $(
@@ -48,6 +53,7 @@ macro_rules! cfg_nightly_hidden_doc {
 }
 
 #[macro_export]
+#[doc(hidden)]
 macro_rules! cfg_hashbrown {
     ($($item:item)*) => {
         $(
@@ -59,6 +65,7 @@ macro_rules! cfg_hashbrown {
 }
 
 #[macro_export]
+#[doc(hidden)]
 macro_rules! cfg_not_hashbrown {
     ($($item:item)*) => {
         $(

@@ -1,7 +1,31 @@
-// #![no_std]
+//! <div align="center">
+//! <h1>HashiCorp-LRU</h1>
+//! </div>
+//! <div align="center">
+//!
+//! This is a Rust implementation for [HashiCorp's golang-lru](https://github.com/hashicorp/golang-lru).
+//!
+//! [<img alt="github" src="https://img.shields.io/badge/GITHUB-hashicorp--lru-8da0cb?style=for-the-badge&logo=Github" height="22">][Github-url]
+//! [<img alt="docs.rs" src="https://img.shields.io/badge/docs.rs-hashicorp--lru-66c2a5?style=for-the-badge&labelColor=555555&logo=data:image/svg+xml;base64,PHN2ZyByb2xlPSJpbWciIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyIgdmlld0JveD0iMCAwIDUxMiA1MTIiPjxwYXRoIGZpbGw9IiNmNWY1ZjUiIGQ9Ik00ODguNiAyNTAuMkwzOTIgMjE0VjEwNS41YzAtMTUtOS4zLTI4LjQtMjMuNC0zMy43bC0xMDAtMzcuNWMtOC4xLTMuMS0xNy4xLTMuMS0yNS4zIDBsLTEwMCAzNy41Yy0xNC4xIDUuMy0yMy40IDE4LjctMjMuNCAzMy43VjIxNGwtOTYuNiAzNi4yQzkuMyAyNTUuNSAwIDI2OC45IDAgMjgzLjlWMzk0YzAgMTMuNiA3LjcgMjYuMSAxOS45IDMyLjJsMTAwIDUwYzEwLjEgNS4xIDIyLjEgNS4xIDMyLjIgMGwxMDMuOS01MiAxMDMuOSA1MmMxMC4xIDUuMSAyMi4xIDUuMSAzMi4yIDBsMTAwLTUwYzEyLjItNi4xIDE5LjktMTguNiAxOS45LTMyLjJWMjgzLjljMC0xNS05LjMtMjguNC0yMy40LTMzLjd6TTM1OCAyMTQuOGwtODUgMzEuOXYtNjguMmw4NS0zN3Y3My4zek0xNTQgMTA0LjFsMTAyLTM4LjIgMTAyIDM4LjJ2LjZsLTEwMiA0MS40LTEwMi00MS40di0uNnptODQgMjkxLjFsLTg1IDQyLjV2LTc5LjFsODUtMzguOHY3NS40em0wLTExMmwtMTAyIDQxLjQtMTAyLTQxLjR2LS42bDEwMi0zOC4yIDEwMiAzOC4ydi42em0yNDAgMTEybC04NSA0Mi41di03OS4xbDg1LTM4Ljh2NzUuNHptMC0xMTJsLTEwMiA0MS40LTEwMi00MS40di0uNmwxMDItMzguMiAxMDIgMzguMnYuNnoiPjwvcGF0aD48L3N2Zz4K" height="20">](https://docs.rs/hashicorp-lru)
+//! [<img alt="crates.io" src="https://img.shields.io/crates/v/hashicorp-lru?logo=rust&style=for-the-badge" height="22">][crates-url]
+//!
+//! [<img alt="Build" src="https://img.shields.io/badge/Build-passing-brightgreen?style=for-the-badge&logo=Github-Actions" height="22">][CI-url]
+//! [<img alt="codecov" src="https://img.shields.io/codecov/c/gh/al8n/hashicorp-lru?style=for-the-badge&token=65Q9QTR99U&logo=codecov" height="22">][codecov-url]
+//! 
+//! [<img alt="license-apache" src="https://img.shields.io/badge/License-Apache%202.0-blue.svg?style=for-the-badge&logo=Apache" height="22">][license-apache-url]
+//! [<img alt="license-mit" src="https://img.shields.io/badge/License-MIT-yellow.svg?style=for-the-badge&fontColor=white&logoColor=f5c076&logo=data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIGhlaWdodD0iMzZweCIgdmlld0JveD0iMCAwIDI0IDI0IiB3aWR0aD0iMzZweCIgZmlsbD0iI2Y1YzA3NiI+PHBhdGggZD0iTTAgMGgyNHYyNEgwVjB6IiBmaWxsPSJub25lIi8+PHBhdGggZD0iTTEwLjA4IDEwLjg2Yy4wNS0uMzMuMTYtLjYyLjMtLjg3cy4zNC0uNDYuNTktLjYyYy4yNC0uMTUuNTQtLjIyLjkxLS4yMy4yMy4wMS40NC4wNS42My4xMy4yLjA5LjM4LjIxLjUyLjM2cy4yNS4zMy4zNC41My4xMy40Mi4xNC42NGgxLjc5Yy0uMDItLjQ3LS4xMS0uOS0uMjgtMS4yOXMtLjQtLjczLS43LTEuMDEtLjY2LS41LTEuMDgtLjY2LS44OC0uMjMtMS4zOS0uMjNjLS42NSAwLTEuMjIuMTEtMS43LjM0cy0uODguNTMtMS4yLjkyLS41Ni44NC0uNzEgMS4zNlM4IDExLjI5IDggMTEuODd2LjI3YzAgLjU4LjA4IDEuMTIuMjMgMS42NHMuMzkuOTcuNzEgMS4zNS43Mi42OSAxLjIuOTFjLjQ4LjIyIDEuMDUuMzQgMS43LjM0LjQ3IDAgLjkxLS4wOCAxLjMyLS4yM3MuNzctLjM2IDEuMDgtLjYzLjU2LS41OC43NC0uOTQuMjktLjc0LjMtMS4xNWgtMS43OWMtLjAxLjIxLS4wNi40LS4xNS41OHMtLjIxLjMzLS4zNi40Ni0uMzIuMjMtLjUyLjNjLS4xOS4wNy0uMzkuMDktLjYuMS0uMzYtLjAxLS42Ni0uMDgtLjg5LS4yMy0uMjUtLjE2LS40NS0uMzctLjU5LS42MnMtLjI1LS41NS0uMy0uODgtLjA4LS42Ny0uMDgtMXYtLjI3YzAtLjM1LjAzLS42OC4wOC0xLjAxek0xMiAyQzYuNDggMiAyIDYuNDggMiAxMnM0LjQ4IDEwIDEwIDEwIDEwLTQuNDggMTAtMTBTMTcuNTIgMiAxMiAyem0wIDE4Yy00LjQxIDAtOC0zLjU5LTgtOHMzLjU5LTggOC04IDggMy41OSA4IDgtMy41OSA4LTggOHoiLz48L3N2Zz4=" height="22">][license-mit-url]
+//! </div>
+//!
+//! [Github-url]: https://github.com/al8n/hashicorp-lru/
+//! [CI-url]: https://github.com/al8n/hashicorp-lru/actions/workflows/ci.yml
+//! [codecov-url]: https://codecov.io/gh/al8n/hashicorp-lru
+//! [license-apache-url]: https://opensource.org/licenses/Apache-2.0
+//! [license-mit-url]: https://opensource.org/licenses/Apache-2.0
+//! [crates-url]: https://crates.io/crates/hashicorp-lru
+#![no_std]
 #![cfg_attr(feature = "nightly", feature(negative_impls, auto_traits))]
+#![deny(missing_docs)]
 
-#[deny(missing_docs)]
 extern crate alloc;
 #[cfg(feature = "hashbrown")]
 extern crate hashbrown;
@@ -17,11 +41,12 @@ mod two_queue;
 #[macro_use]
 mod macros;
 
+pub use adaptive::{AdaptiveCache, AdaptiveCacheBuilder};
+pub use lru::LRUCache;
 pub use raw::{
     KeysLRUIter, KeysMRUIter, LRUIter, LRUIterMut, MRUIter, MRUIterMut, RawLRU, ValuesLRUIter,
     ValuesLRUIterMut, ValuesMRUIter, ValuesMRUIterMut,
 };
-
 pub use two_queue::{
     TwoQueueCache, TwoQueueCacheBuilder, DEFAULT_2Q_GHOST_RATIO, DEFAULT_2Q_RECENT_RATIO,
 };
@@ -29,13 +54,14 @@ pub use two_queue::{
 use core::borrow::Borrow;
 use core::fmt::{Debug, Display, Formatter};
 use core::hash::{Hash, Hasher};
-pub use lru::LRUCache;
 
 cfg_hashbrown!(
+    /// Re-export for DefaultHashBuilder
     pub type DefaultHashBuilder = hashbrown::hash_map::DefaultHashBuilder;
 );
 
 cfg_not_hashbrown!(
+    /// Re-export for DefaultHashBuilder
     pub type DefaultHashBuilder = std::collections::hash_map::DefaultHasher;
 );
 
@@ -89,7 +115,44 @@ impl OnEvictCallback for DefaultEvictCallback {
     fn on_evict<K, V>(&self, _: &K, _: &V) {}
 }
 
+/// `OnEvictCallback` is used to apply a callback for evicted entry.
+///
+/// # Example
+/// ```
+/// use hashicorp_lru::{RawLRU, OnEvictCallback};
+/// use std::sync::atomic::{AtomicU64, Ordering};
+/// use std::sync::Arc;
+///
+/// struct EvictedCounter {
+///     ctr: Arc<AtomicU64>,
+/// }
+///
+/// impl EvictedCounter {
+///     pub fn new(ctr: Arc<AtomicU64>) -> Self {
+///         Self {
+///             ctr,
+///         }
+///     }
+/// }
+///
+/// impl OnEvictCallback for EvictedCounter {
+///     fn on_evict<K, V>(&self, _: &K, _: &V) {
+///         self.ctr.fetch_add(1, Ordering::SeqCst);
+///     }
+/// }
+///
+/// let counter = Arc::new(AtomicU64::new(0));
+///
+/// let mut cache: RawLRU<u64, u64, EvictedCounter> = RawLRU::with_on_evict_cb(1, EvictedCounter::new(counter.clone())).unwrap();
+///
+/// cache.put(1, 1);
+/// cache.put(2, 2);
+/// cache.put(3, 3);
+///
+/// assert_eq!(counter.load(Ordering::SeqCst), 2);
+/// ```
 pub trait OnEvictCallback {
+    /// `on_evict` is a callback function will be invoked if an entry is evicted.
     fn on_evict<K, V>(&self, key: &K, val: &V);
 }
 
@@ -119,7 +182,12 @@ pub enum PutResult<K, V> {
 
     /// `Evicted` means that the the key is not in cache previously,
     /// but the cache is full, so the evict happens. The inner is the evicted entry `(Key, Value)`.
-    Evicted { key: K, value: V },
+    Evicted {
+        /// The key for the evicted entry.
+        key: K,
+        /// The value for the evicted entry.
+        value: V,
+    },
 
     /// `EvictedAndUpdate` is only possible to be returned by [`TwoQueueCache`] and [`AdaptiveCache`].
     ///
@@ -127,7 +195,12 @@ pub enum PutResult<K, V> {
     ///
     /// [`TwoQueueCache`]: struct.TwoQueueCache.html
     /// [`AdaptiveCache`]: struct.AdaptiveCache.html
-    EvictedAndUpdate { evicted: (K, V), update: V },
+    EvictedAndUpdate {
+        /// The evicted entry.
+        evicted: (K, V),
+        /// The old value for the updated entry.
+        update: V,
+    },
 }
 
 impl<K: PartialEq, V: PartialEq> PartialEq for PutResult<K, V> {
@@ -195,10 +268,17 @@ impl<K: Clone, V: Clone> Clone for PutResult<K, V> {
 impl<K: Copy, V: Copy> Copy for PutResult<K, V> {}
 
 /// `CacheError` is the errors of this crate.
-#[derive(Debug, PartialEq)]
+#[derive(Copy, Clone, Debug, PartialEq, PartialOrd)]
 pub enum CacheError {
+    /// Invalid cache size
     InvalidSize(usize),
+    /// Invalid recent ratio for [`TwoQueueCache`]
+    ///
+    /// [`TwoQueueCache`]: struct.TwoQueueCache.html
     InvalidRecentRatio(f64),
+    /// Invalid ghost ratio for [`TwoQueueCache`]
+    ///
+    /// [`TwoQueueCache`]: struct.TwoQueueCache.html
     InvalidGhostRatio(f64),
 }
 

@@ -1291,7 +1291,6 @@ impl<K: Hash + Eq + Clone, V: Clone, const N: usize> From<[(K, V); N]> for RawLR
     }
 }
 
-#[macro_export]
 macro_rules! impl_rawlru_from_kv_collections {
     ($($t:ty),*) => {
         $(
@@ -1337,13 +1336,7 @@ impl<K: Hash + Eq, V, E: OnEvictCallback, S: BuildHasher> fmt::Debug for RawLRU<
 ///////////////////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////////////////
 
-/// An iterator over the entries of a `RawLRU`, from most recent used to less recent used.
-///
-/// This `struct` is created by the [`iter`] method on [`RawLRU`][`RawLRU`]. See its
-/// documentation for more.
-///
-/// [`iter`]: struct.RawLRU.html#method.iter
-/// [`RawLRU`]: struct.RawLRU.html
+/// An iterator over the entries, from most recent used to less recent used.
 pub struct MRUIter<'a, K: 'a, V: 'a> {
     len: usize,
 
@@ -1395,13 +1388,7 @@ impl<'a, K, V> DoubleEndedIterator for MRUIter<'a, K, V> {
     }
 }
 
-/// An iterator over the entries of a `RawLRU` from less recent used to most recent used.
-///
-/// This `struct` is created by the [`iter_lru`] method on [`RawLRU`][`RawLRU`]. See its
-/// documentation for more.
-///
-/// [`iter_lru`]: struct.RawLRU.html#method.iter_lru
-/// [`RawLRU`]: struct.RawLRU.html
+/// An iterator over the entries from less recent used to most recent used.
 pub struct LRUIter<'a, K: 'a, V: 'a> {
     len: usize,
 
@@ -1453,13 +1440,7 @@ impl<'a, K, V> DoubleEndedIterator for LRUIter<'a, K, V> {
     }
 }
 
-/// An iterator over mutable entries of a `RawLRU`, from most recent used to less recent used.
-///
-/// This `struct` is created by the [`iter_mut`] method on [`RawLRU`][`RawLRU`]. See its
-/// documentation for more.
-///
-/// [`iter_mut`]: struct.RawLRU.html#method.iter_mut
-/// [`RawLRU`]: struct.RawLRU.html
+/// An iterator over mutable entries, from most recent used to less recent used.
 pub struct MRUIterMut<'a, K: 'a, V: 'a> {
     len: usize,
 
@@ -1511,13 +1492,7 @@ impl<'a, K, V> DoubleEndedIterator for MRUIterMut<'a, K, V> {
     }
 }
 
-/// An iterator over mutable entries of a `RawLRU`, from less recent used to most recent used.
-///
-/// This `struct` is created by the [`iter_mut`] method on [`RawLRU`][`RawLRU`]. See its
-/// documentation for more.
-///
-/// [`iter_mut`]: struct.RawLRU.html#method.iter_lru_mut
-/// [`RawLRU`]: struct.RawLRU.html
+/// An iterator over mutable entries, from less recent used to most recent used.
 pub struct LRUIterMut<'a, K: 'a, V: 'a> {
     len: usize,
 
@@ -1569,65 +1544,32 @@ impl<'a, K, V> DoubleEndedIterator for LRUIterMut<'a, K, V> {
     }
 }
 
-/// An iterator over entries of a `RawLRU`, from most recent used to less recent used.
-///
-/// This `struct` is created by the [`keys`] method on [`RawLRU`][`RawLRU`]. See its
-/// documentation for more.
-///
-/// [`keys`]: struct.RawLRU.html#method.keys
-/// [`RawLRU`]: struct.RawLRU.html
+/// An iterator over entries, from most recent used to less recent used.
 pub struct KeysMRUIter<'a, K, V> {
     inner: MRUIter<'a, K, V>,
 }
 
-/// An iterator over entries of a `RawLRU`, from less recent used to most recent used.
-///
-/// This `struct` is created by the [`keys_lru`] method on [`RawLRU`][`RawLRU`]. See its
-/// documentation for more.
-///
-/// [`keys_lru`]: struct.RawLRU.html#method.keys_lru
-/// [`RawLRU`]: struct.RawLRU.html
+/// An iterator over entries, from less recent used to most recent used.
 pub struct KeysLRUIter<'a, K, V> {
     inner: LRUIter<'a, K, V>,
 }
 
-/// An iterator over entries of a `RawLRU`, from most recent used to less recent used.
-///
-/// This `struct` is created by the [`values`] method on [`RawLRU`][`RawLRU`]. See its
-/// documentation for more.
-///
-/// [`values`]: struct.RawLRU.html#method.values
-/// [`RawLRU`]: struct.RawLRU.html
+/// An iterator over entries, from most recent used to less recent used.
 pub struct ValuesMRUIter<'a, K, V> {
     inner: MRUIter<'a, K, V>,
 }
 
-/// An iterator over mutable entries of a `RawLRU`, from most recent used to less recent used.
-///
-/// This `struct` is created by the [`values_mut`] method on [`RawLRU`][`RawLRU`]. See its
-/// documentation for more.
-///
-/// [`values_mut`]: struct.RawLRU.html#method.values_mut
+/// An iterator over mutable entries, from most recent used to less recent used.
 pub struct ValuesMRUIterMut<'a, K: 'a, V: 'a> {
     inner: MRUIterMut<'a, K, V>,
 }
 
-/// An iterator over entries of a `RawLRU`, from less recent used to most recent used.
-///
-/// This `struct` is created by the [`values_lru`] method on [`RawLRU`][`RawLRU`]. See its
-/// documentation for more.
-///
-/// [`values_lru`]: struct.RawLRU.html#method.values_lru
+/// An iterator over entries, from less recent used to most recent used.
 pub struct ValuesLRUIter<'a, K: 'a, V: 'a> {
     inner: LRUIter<'a, K, V>,
 }
 
-/// An iterator over mutable entries of a `RawLRU`, from less recent used to most recent used.
-///
-/// This `struct` is created by the [`values_lru_mut`] method on [`RawLRU`][`RawLRU`]. See its
-/// documentation for more.
-///
-/// [`values_lru_mut`]: struct.RawLRU.html#method.values_lru_mut
+/// An iterator over mutable entries, from less recent used to most recent used.
 pub struct ValuesLRUIterMut<'a, K: 'a, V: 'a> {
     inner: LRUIterMut<'a, K, V>,
 }
