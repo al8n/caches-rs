@@ -177,6 +177,82 @@ impl<RH: BuildHasher, REH: BuildHasher, FH: BuildHasher, FEH: BuildHasher>
 /// with the size of the cache. ARC has been patented by IBM, but is
 /// similar to the [`TwoQueueCache`] (2Q) which requires setting parameters.
 ///
+/// # Example
+/// 
+/// ```rust
+///
+/// use hashicorp_lru::AdaptiveCache;
+/// 
+/// let mut cache = AdaptiveCache::new(4).unwrap();
+/// 
+/// // fill recent
+/// (0..4).for_each(|i| cache.put(i, i)); 
+/// 
+/// // move to frequent
+/// cache.get(&0);
+/// cache.get(&1);
+/// assert_eq!(cache.frequent_len(), 2);
+///
+/// // evict from recent
+/// cache.put(4, 4);
+/// assert_eq!(cache.recent_evict_len(), 1);
+///
+/// // current state
+/// // recent:          (MRU) [4, 3] (LRU)
+/// // frequent:        (MRU) [1, 0] (LRU)
+/// // recent evict:    (MRU) [2] (LRU)
+/// // frequent evict:  (MRU) [] (LRU)
+///
+/// // Add 2, should cause hit on recent_evict
+/// cache.put(2, 2);
+/// assert_eq!(cache.recent_evict_len(), 1);
+/// assert_eq!(cache.partition(), 1);
+/// assert_eq!(cache.frequent_len(), 3);
+///
+/// // Current state
+/// // recent LRU:      (MRU) [4] (LRU)
+/// // frequent LRU:    (MRU) [2, 1, 0] (LRU)
+/// // recent evict:    (MRU) [3] (LRU)
+/// // frequent evict:  (MRU) [] (LRU)
+///
+/// // Add 4, should migrate to frequent
+/// cache.put(4, 4);
+/// assert_eq!(cache.recent_len(), 0);
+/// assert_eq!(cache.frequent_len(), 4);
+///
+/// // Current state
+/// // recent LRU:      (MRU) [] (LRU)
+/// // frequent LRU:    (MRU) [4, 2, 1, 0] (LRU)
+/// // recent evict:    (MRU) [3] (LRU)
+/// // frequent evict:  (MRU) [] (LRU)
+///
+/// // Add 5, should evict to b2
+/// cache.put(5, 5);
+/// assert_eq!(cache.recent_len(), 1);
+/// assert_eq!(cache.frequent_len(), 3);
+/// assert_eq!(cache.frequent_evict_len(), 1);
+///
+/// // Current state
+/// // recent:          (MRU) [5] (LRU)
+/// // frequent:        (MRU) [4, 2, 1] (LRU)
+/// // recent evict:    (MRU) [3] (LRU)
+/// // frequent evict:  (MRU) [0] (LRU)
+///
+/// // Add 0, should decrease p
+/// cache.put(0, 0);
+/// assert_eq!(cache.recent_len(), 0);
+/// assert_eq!(cache.frequent_len(), 4);
+/// assert_eq!(cache.recent_evict_len(), 2);
+/// assert_eq!(cache.frequent_evict_len(), 0);
+/// assert_eq!(cache.partition(), 0);
+///
+/// // Current state
+/// // recent:         (MRU) [] (LRU)
+/// // frequent:       (MRU) [0, 4, 2, 1] (LRU)
+/// // recent evict:   (MRU) [5, 3] (LRU)
+/// // frequent evict: (MRU) [0] (LRU)
+/// ```
+/// 
 /// [`RawLRU`]: struct.RawLRU.html
 /// [`TwoQueueCache`]: struct.TwoQueueCache.html
 pub struct AdaptiveCache<
@@ -586,6 +662,11 @@ impl<K: Hash + Eq, V, RH: BuildHasher, REH: BuildHasher, FH: BuildHasher, FEH: B
         self.recent_evict.purge();
         self.frequent_evict.purge();
     }
+    
+    /// Returns the current partition value of the cache.  
+    pub fn partition(&self) -> usize {
+        self.p
+    }
 
     /// Returns the number of key-value pairs that are currently in the the cache.
     ///
@@ -607,6 +688,26 @@ impl<K: Hash + Eq, V, RH: BuildHasher, REH: BuildHasher, FH: BuildHasher, FEH: B
     /// ```
     pub fn len(&self) -> usize {
         self.recent.len() + self.frequent.len()
+    }
+    
+    /// Returns the number of key-value pairs that are currently in the the recent LRU. 
+    pub fn recent_len(&self) -> usize {
+        self.recent.len()
+    }
+
+    /// Returns the number of key-value pairs that are currently in the the frequent LRU. 
+    pub fn frequent_len(&self) -> usize {
+        self.frequent.len()
+    }
+
+    /// Returns the number of key-value pairs that are currently in the the recent evict LRU. 
+    pub fn recent_evict_len(&self) -> usize {
+        self.recent_evict.len()
+    }
+
+    /// Returns the number of key-value pairs that are currently in the the frequent evict LRU. 
+    pub fn frequent_evict_len(&self) -> usize {
+        self.frequent_evict.len()
     }
 
     /// Returns the maximum number of key-value pairs the cache can hold.
@@ -1652,7 +1753,7 @@ mod test {
 
         let mut cache = AdaptiveCache::new(size).unwrap();
 
-        (0..200_000).for_each(|i| {
+        (0..200_000).for_each(|_i| {
             let k = rng.gen::<i64>() % 512;
             let r: i64 = rng.gen();
 
@@ -1669,13 +1770,7 @@ mod test {
                 _ => {}
             }
 
-            assert!(
-                cache.recent.len() + cache.frequent.len() <= size,
-                "idx: {}, bad: recent: {} freq: {}",
-                i,
-                cache.recent.len(),
-                cache.frequent.len()
-            )
+            assert!(cache.recent.len() + cache.frequent.len() <= size)
         })
     }
 
@@ -1754,10 +1849,10 @@ mod test {
         assert_eq!(cache.frequent.len(), 3);
 
         // Current state
-        // t1 : (MRU) [4] (LRU)
-        // t2 : (MRU) [2, 1, 0] (LRU)
-        // b1 : (MRU) [3] (LRU)
-        // b2 : (MRU) [] (LRU)
+        // recent LRU: (MRU) [4] (LRU)
+        // frequent LRU: (MRU) [2, 1, 0] (LRU)
+        // recent evict: (MRU) [3] (LRU)
+        // frequent evict: (MRU) [] (LRU)
 
         // Add 4, should migrate to frequent
         cache.put(4, 4);
@@ -1765,10 +1860,10 @@ mod test {
         assert_eq!(cache.frequent.len(), 4);
 
         // Current state
-        // t1 : (MRU) [] (LRU)
-        // t2 : (MRU) [4, 2, 1, 0] (LRU)
-        // b1 : (MRU) [3] (LRU)
-        // b2 : (MRU) [] (LRU)
+        // recent LRU: (MRU) [] (LRU)
+        // frequent LRU: (MRU) [4, 2, 1, 0] (LRU)
+        // recent evict: (MRU) [3] (LRU)
+        // frequent evict: (MRU) [] (LRU)
 
         // Add 5, should evict to b2
         cache.put(5, 5);
@@ -1777,10 +1872,10 @@ mod test {
         assert_eq!(cache.frequent_evict.len(), 1);
 
         // Current state
-        // t1 : (MRU) [5] (LRU)
-        // t2 : (MRU) [4, 2, 1] (LRU)
-        // b1 : (MRU) [3] (LRU)
-        // b2 : (MRU) [0] (LRU)
+        // recent LRU: (MRU) [5] (LRU)
+        // frequent LRU: (MRU) [4, 2, 1] (LRU)
+        // recent evict: (MRU) [3] (LRU)
+        // frequent evict: (MRU) [0] (LRU)
 
         // Add 0, should decrease p
         cache.put(0, 0);
@@ -1791,10 +1886,10 @@ mod test {
         assert_eq!(cache.p, 0);
 
         // Current state
-        // t1 : (MRU) [] (LRU)
-        // t2 : (MRU) [0, 4, 2, 1] (LRU)
-        // b1 : (MRU) [5, 3] (LRU)
-        // b2 : (MRU) [0] (LRU)
+        // recent LRU: (MRU) [] (LRU)
+        // frequent LRU: (MRU) [0, 4, 2, 1] (LRU)
+        // recent evict: (MRU) [5, 3] (LRU)
+        // frequent evict: (MRU) [0] (LRU)
     }
 
     #[test]

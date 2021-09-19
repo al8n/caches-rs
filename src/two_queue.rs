@@ -218,6 +218,49 @@ impl<RH: BuildHasher, FH: BuildHasher, GH: BuildHasher> TwoQueueCacheBuilder<RH,
 /// head. The [`AdaptiveCache`] is similar to the TwoQueueCache, but does not require setting any
 /// parameters.
 ///
+/// # Example
+///
+/// ```rust
+///
+/// use hashicorp_lru::{TwoQueueCache, PutResult};
+///
+/// let mut cache = TwoQueueCache::new(4).unwrap();
+///
+/// // Add 1,2,3,4,
+/// (1..=4).for_each(|i| {
+///     assert_eq!(cache.put(i, i), PutResult::Put);
+/// });
+///
+/// // Add 5 -> Evict 1 to ghost LRU
+/// assert_eq!(cache.put(5, 5), PutResult::Put);
+///
+/// // Pull in the recently evicted
+/// assert_eq!(cache.put(1, 1), PutResult::Update(1));
+///
+/// // Add 6, should cause another recent evict
+/// assert_eq!(cache.put(6, 6), PutResult::<i32, i32>::Put);
+///
+/// // Add 7, should evict an entry from ghost LRU.
+/// assert_eq!(cache.put(7, 7), PutResult::Evicted { key: 2, value: 2 });
+///
+/// // Add 2, should evict an entry from ghost LRU
+/// assert_eq!(cache.put(2, 11), PutResult::Evicted { key: 3, value: 3 });
+///
+/// // Add 4, should put the entry from ghost LRU to freq LRU
+/// assert_eq!(cache.put(4, 11), PutResult::Update(4));
+///
+/// // move all entry in recent to freq.
+/// assert_eq!(cache.put(2, 22), PutResult::Update(11));
+/// assert_eq!(cache.put(7, 77), PutResult::<i32, i32>::Update(7));
+///
+/// // Add 6, should put the entry from ghost LRU to freq LRU, and evicted one
+/// // entry
+/// assert_eq!(cache.put(6, 66), PutResult::EvictedAndUpdate { evicted: (5, 5), update: 6});
+/// assert_eq!(cache.recent_len(), 0);
+/// assert_eq!(cache.ghost_len(), 1);
+/// assert_eq!(cache.frequent_len(), 4);
+/// ```
+///
 /// [`RawLRU`]: struct.RawLRU.html
 /// [`AdaptiveCache`]: struct.AdaptiveCache.html
 pub struct TwoQueueCache<
@@ -731,6 +774,21 @@ impl<K: Hash + Eq, V, RH: BuildHasher, FH: BuildHasher, GH: BuildHasher>
     /// ```
     pub fn len(&self) -> usize {
         self.recent.len() + self.frequent.len()
+    }
+
+    /// Returns the number of key-value pairs that are currently in the the recent LRU.
+    pub fn recent_len(&self) -> usize {
+        self.recent.len()
+    }
+
+    /// Returns the number of key-value pairs that are currently in the the frequent LRU.
+    pub fn frequent_len(&self) -> usize {
+        self.frequent.len()
+    }
+
+    /// Returns the number of key-value pairs that are currently in the the ghost LRU.
+    pub fn ghost_len(&self) -> usize {
+        self.ghost.len()
     }
 
     /// Returns the maximum number of key-value pairs the cache can hold
@@ -1525,7 +1583,7 @@ mod test {
 
         let mut cache = TwoQueueCache::new(size).unwrap();
 
-        (0..200_000).for_each(|i| {
+        (0..200_000).for_each(|_i| {
             let k = rng.gen::<i64>() % 512;
             let r: i64 = rng.gen();
 
@@ -1542,13 +1600,7 @@ mod test {
                 _ => {}
             }
 
-            assert!(
-                cache.recent.len() + cache.frequent.len() <= size,
-                "idx: {}, bad: recent: {} freq: {}",
-                i,
-                cache.recent.len(),
-                cache.frequent.len()
-            )
+            assert!(cache.recent.len() + cache.frequent.len() <= size)
         })
     }
 
@@ -1589,18 +1641,18 @@ mod test {
 
         // Add initially to recent
         cache.put(1, 1);
-        assert_eq!(cache.recent.len(), 1, "bad {}", cache.recent.len());
-        assert_eq!(cache.frequent.len(), 0, "bad {}", cache.frequent.len());
+        assert_eq!(cache.recent.len(), 1);
+        assert_eq!(cache.frequent.len(), 0);
 
         // Add should upgrade to frequent
         cache.put(1, 1);
-        assert_eq!(cache.recent.len(), 0, "bad {}", cache.recent.len());
-        assert_eq!(cache.frequent.len(), 1, "bad {}", cache.frequent.len());
+        assert_eq!(cache.recent.len(), 0);
+        assert_eq!(cache.frequent.len(), 1);
 
         // Add should remain in frequent
         cache.put(1, 1);
-        assert_eq!(cache.recent.len(), 0, "bad {}", cache.recent.len());
-        assert_eq!(cache.frequent.len(), 1, "bad {}", cache.frequent.len());
+        assert_eq!(cache.recent.len(), 0);
+        assert_eq!(cache.frequent.len(), 1);
     }
 
     #[test]
@@ -1613,59 +1665,59 @@ mod test {
         cache.put(3, 3);
         cache.put(4, 4);
         cache.put(5, 5);
-        assert_eq!(cache.recent.len(), 4, "bad: {}", cache.recent.len());
-        assert_eq!(cache.ghost.len(), 1, "bad: {}", cache.ghost.len());
-        assert_eq!(cache.frequent.len(), 0, "bad: {}", cache.frequent.len());
+        assert_eq!(cache.recent.len(), 4);
+        assert_eq!(cache.ghost.len(), 1, );
+        assert_eq!(cache.frequent.len(), 0);
 
         // Pull in the recently evicted
         assert_eq!(cache.put(1, 1), PutResult::Update(1));
-        assert_eq!(cache.recent.len(), 3, "bad: {}", cache.recent.len());
-        assert_eq!(cache.ghost.len(), 1, "bad: {}", cache.ghost.len());
-        assert_eq!(cache.frequent.len(), 1, "bad: {}", cache.frequent.len());
+        assert_eq!(cache.recent.len(), 3);
+        assert_eq!(cache.ghost.len(), 1, );
+        assert_eq!(cache.frequent.len(), 1);
 
         // Add 6, should cause another recent evict
         assert_eq!(
             format!("{:?}", cache.put(6, 6).clone()),
             format!("{:?}", PutResult::<i32, i32>::Put)
         );
-        assert_eq!(cache.recent.len(), 3, "bad: {}", cache.recent.len());
-        assert_eq!(cache.ghost.len(), 2, "bad: {}", cache.ghost.len());
-        assert_eq!(cache.frequent.len(), 1, "bad: {}", cache.frequent.len());
+        assert_eq!(cache.recent.len(), 3);
+        assert_eq!(cache.ghost.len(), 2, );
+        assert_eq!(cache.frequent.len(), 1);
 
         // Add 7, should evict an entry from ghost LRU.
         assert_eq!(cache.put(7, 7), PutResult::Evicted { key: 2, value: 2 });
-        assert_eq!(cache.recent.len(), 3, "bad: {}", cache.recent.len());
-        assert_eq!(cache.ghost.len(), 2, "bad: {}", cache.ghost.len());
-        assert_eq!(cache.frequent.len(), 1, "bad: {}", cache.frequent.len());
+        assert_eq!(cache.recent.len(), 3);
+        assert_eq!(cache.ghost.len(), 2, );
+        assert_eq!(cache.frequent.len(), 1);
 
         // Add 2, should evict an entry from ghost LRU
         assert_eq!(
             format!("{:?}", cache.put(2, 11).clone()),
             format!("{:?}", PutResult::Evicted { key: 3, value: 3 })
         );
-        assert_eq!(cache.recent.len(), 3, "bad: {}", cache.recent.len());
-        assert_eq!(cache.ghost.len(), 2, "bad: {}", cache.ghost.len());
-        assert_eq!(cache.frequent.len(), 1, "bad: {}", cache.frequent.len());
+        assert_eq!(cache.recent.len(), 3);
+        assert_eq!(cache.ghost.len(), 2, );
+        assert_eq!(cache.frequent.len(), 1);
 
         // Add 4, should put the entry from ghost LRU to freq LRU
         assert_eq!(cache.put(4, 11), PutResult::Update(4));
-        assert_eq!(cache.recent.len(), 2, "bad: {}", cache.recent.len());
-        assert_eq!(cache.ghost.len(), 2, "bad: {}", cache.ghost.len());
-        assert_eq!(cache.frequent.len(), 2, "bad: {}", cache.frequent.len());
+        assert_eq!(cache.recent.len(), 2);
+        assert_eq!(cache.ghost.len(), 2, );
+        assert_eq!(cache.frequent.len(), 2);
 
         // move all entry in recent to freq.
         assert_eq!(cache.put(2, 22).clone(), PutResult::Update(11));
-        assert_eq!(cache.recent.len(), 1, "bad: {}", cache.recent.len());
-        assert_eq!(cache.ghost.len(), 2, "bad: {}", cache.ghost.len());
-        assert_eq!(cache.frequent.len(), 3, "bad: {}", cache.frequent.len());
+        assert_eq!(cache.recent.len(), 1);
+        assert_eq!(cache.ghost.len(), 2, );
+        assert_eq!(cache.frequent.len(), 3);
 
         assert_eq!(
             format!("{:?}", cache.put(7, 77)),
             format!("{:?}", PutResult::<i32, i32>::Update(7))
         );
-        assert_eq!(cache.recent.len(), 0, "bad: {}", cache.recent.len());
-        assert_eq!(cache.ghost.len(), 2, "bad: {}", cache.ghost.len());
-        assert_eq!(cache.frequent.len(), 4, "bad: {}", cache.frequent.len());
+        assert_eq!(cache.recent.len(), 0);
+        assert_eq!(cache.ghost.len(), 2);
+        assert_eq!(cache.frequent.len(), 4);
 
         // Add 6, should put the entry from ghost LRU to freq LRU, and evicted one
         // entry
@@ -1679,9 +1731,9 @@ mod test {
                 }
             )
         );
-        assert_eq!(cache.recent.len(), 0, "bad: {}", cache.recent.len());
-        assert_eq!(cache.ghost.len(), 1, "bad: {}", cache.ghost.len());
-        assert_eq!(cache.frequent.len(), 4, "bad: {}", cache.frequent.len());
+        assert_eq!(cache.recent.len(), 0);
+        assert_eq!(cache.ghost.len(), 1);
+        assert_eq!(cache.frequent.len(), 4);
     }
 
     #[test]

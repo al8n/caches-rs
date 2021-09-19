@@ -7,7 +7,7 @@
 [<img alt="Build" src="https://img.shields.io/badge/Build-passing-brightgreen?style=for-the-badge&logo=Github-Actions" height="22">][CI-url]
 [<img alt="codecov" src="https://img.shields.io/codecov/c/gh/al8n/hashicorp-lru?style=for-the-badge&token=65Q9QTR99U&logo=codecov" height="22">][codecov-url]
 
-[<img alt="docs.rs" src="https://img.shields.io/badge/docs.rs-hashicorp--lru-66c2a5?style=for-the-badge&labelColor=555555&logo=data:image/svg+xml;base64,PHN2ZyByb2xlPSJpbWciIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyIgdmlld0JveD0iMCAwIDUxMiA1MTIiPjxwYXRoIGZpbGw9IiNmNWY1ZjUiIGQ9Ik00ODguNiAyNTAuMkwzOTIgMjE0VjEwNS41YzAtMTUtOS4zLTI4LjQtMjMuNC0zMy43bC0xMDAtMzcuNWMtOC4xLTMuMS0xNy4xLTMuMS0yNS4zIDBsLTEwMCAzNy41Yy0xNC4xIDUuMy0yMy40IDE4LjctMjMuNCAzMy43VjIxNGwtOTYuNiAzNi4yQzkuMyAyNTUuNSAwIDI2OC45IDAgMjgzLjlWMzk0YzAgMTMuNiA3LjcgMjYuMSAxOS45IDMyLjJsMTAwIDUwYzEwLjEgNS4xIDIyLjEgNS4xIDMyLjIgMGwxMDMuOS01MiAxMDMuOSA1MmMxMC4xIDUuMSAyMi4xIDUuMSAzMi4yIDBsMTAwLTUwYzEyLjItNi4xIDE5LjktMTguNiAxOS45LTMyLjJWMjgzLjljMC0xNS05LjMtMjguNC0yMy40LTMzLjd6TTM1OCAyMTQuOGwtODUgMzEuOXYtNjguMmw4NS0zN3Y3My4zek0xNTQgMTA0LjFsMTAyLTM4LjIgMTAyIDM4LjJ2LjZsLTEwMiA0MS40LTEwMi00MS40di0uNnptODQgMjkxLjFsLTg1IDQyLjV2LTc5LjFsODUtMzguOHY3NS40em0wLTExMmwtMTAyIDQxLjQtMTAyLTQxLjR2LS42bDEwMi0zOC4yIDEwMiAzOC4ydi42em0yNDAgMTEybC04NSA0Mi41di03OS4xbDg1LTM4Ljh2NzUuNHptMC0xMTJsLTEwMiA0MS40LTEwMi00MS40di0uNmwxMDItMzguMiAxMDIgMzguMnYuNnoiPjwvcGF0aD48L3N2Zz4K" height="20">](https://docs.rs/hashicorp-lru)
+[<img alt="docs.rs" src="https://img.shields.io/badge/docs.rs-hashicorp--lru-66c2a5?style=for-the-badge&labelColor=555555&logo=data:image/svg+xml;base64,PHN2ZyByb2xlPSJpbWciIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyIgdmlld0JveD0iMCAwIDUxMiA1MTIiPjxwYXRoIGZpbGw9IiNmNWY1ZjUiIGQ9Ik00ODguNiAyNTAuMkwzOTIgMjE0VjEwNS41YzAtMTUtOS4zLTI4LjQtMjMuNC0zMy43bC0xMDAtMzcuNWMtOC4xLTMuMS0xNy4xLTMuMS0yNS4zIDBsLTEwMCAzNy41Yy0xNC4xIDUuMy0yMy40IDE4LjctMjMuNCAzMy43VjIxNGwtOTYuNiAzNi4yQzkuMyAyNTUuNSAwIDI2OC45IDAgMjgzLjlWMzk0YzAgMTMuNiA3LjcgMjYuMSAxOS45IDMyLjJsMTAwIDUwYzEwLjEgNS4xIDIyLjEgNS4xIDMyLjIgMGwxMDMuOS01MiAxMDMuOSA1MmMxMC4xIDUuMSAyMi4xIDUuMSAzMi4yIDBsMTAwLTUwYzEyLjItNi4xIDE5LjktMTguNiAxOS45LTMyLjJWMjgzLjljMC0xNS05LjMtMjguNC0yMy40LTMzLjd6TTM1OCAyMTQuOGwtODUgMzEuOXYtNjguMmw4NS0zN3Y3My4zek0xNTQgMTA0LjFsMTAyLTM4LjIgMTAyIDM4LjJ2LjZsLTEwMiA0MS40LTEwMi00MS40di0uNnptODQgMjkxLjFsLTg1IDQyLjV2LTc5LjFsODUtMzguOHY3NS40em0wLTExMmwtMTAyIDQxLjQtMTAyLTQxLjR2LS42bDEwMi0zOC4yIDEwMiAzOC4ydi42em0yNDAgMTEybC04NSA0Mi41di03OS4xbDg1LTM4Ljh2NzUuNHptMC0xMTJsLTEwMiA0MS40LTEwMi00MS40di0uNmwxMDItMzguMiAxMDIgMzguMnYuNnoiPjwvcGF0aD48L3N2Zz4K" height="20">][doc-url]
 [<img alt="crates.io" src="https://img.shields.io/crates/v/hashicorp-lru?logo=rust&style=for-the-badge" height="22">][crates-url]
 [<img alt="license-apache" src="https://img.shields.io/badge/License-Apache%202.0-blue.svg?style=for-the-badge&logo=Apache" height="22">][license-apache-url]
 [<img alt="license-mit" src="https://img.shields.io/badge/License-MIT-yellow.svg?style=for-the-badge&fontColor=white&logoColor=f5c076&logo=data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIGhlaWdodD0iMzZweCIgdmlld0JveD0iMCAwIDI0IDI0IiB3aWR0aD0iMzZweCIgZmlsbD0iI2Y1YzA3NiI+PHBhdGggZD0iTTAgMGgyNHYyNEgwVjB6IiBmaWxsPSJub25lIi8+PHBhdGggZD0iTTEwLjA4IDEwLjg2Yy4wNS0uMzMuMTYtLjYyLjMtLjg3cy4zNC0uNDYuNTktLjYyYy4yNC0uMTUuNTQtLjIyLjkxLS4yMy4yMy4wMS40NC4wNS42My4xMy4yLjA5LjM4LjIxLjUyLjM2cy4yNS4zMy4zNC41My4xMy40Mi4xNC42NGgxLjc5Yy0uMDItLjQ3LS4xMS0uOS0uMjgtMS4yOXMtLjQtLjczLS43LTEuMDEtLjY2LS41LTEuMDgtLjY2LS44OC0uMjMtMS4zOS0uMjNjLS42NSAwLTEuMjIuMTEtMS43LjM0cy0uODguNTMtMS4yLjkyLS41Ni44NC0uNzEgMS4zNlM4IDExLjI5IDggMTEuODd2LjI3YzAgLjU4LjA4IDEuMTIuMjMgMS42NHMuMzkuOTcuNzEgMS4zNS43Mi42OSAxLjIuOTFjLjQ4LjIyIDEuMDUuMzQgMS43LjM0LjQ3IDAgLjkxLS4wOCAxLjMyLS4yM3MuNzctLjM2IDEuMDgtLjYzLjU2LS41OC43NC0uOTQuMjktLjc0LjMtMS4xNWgtMS43OWMtLjAxLjIxLS4wNi40LS4xNS41OHMtLjIxLjMzLS4zNi40Ni0uMzIuMjMtLjUyLjNjLS4xOS4wNy0uMzkuMDktLjYuMS0uMzYtLjAxLS42Ni0uMDgtLjg5LS4yMy0uMjUtLjE2LS40NS0uMzctLjU5LS42MnMtLjI1LS41NS0uMy0uODgtLjA4LS42Ny0uMDgtMXYtLjI3YzAtLjM1LjAzLS42OC4wOC0xLjAxek0xMiAyQzYuNDggMiAyIDYuNDggMiAxMnM0LjQ4IDEwIDEwIDEwIDEwLTQuNDggMTAtMTBTMTcuNTIgMiAxMiAyem0wIDE4Yy00LjQxIDAtOC0zLjU5LTgtOHMzLjU5LTggOC04IDggMy41OSA4IDgtMy41OSA4LTggOHoiLz48L3N2Zz4=" height="22">][license-mit-url]
@@ -23,6 +23,8 @@ English | [简体中文](README-zh_CN.md)
 </div>
 
 ## Introduction
+The MSRV for this crate is 1.55.0.
+
 LRU based caches are `O(1)` for read, write and delete.
 
 - `LRUCache` or `RawLRU` is a fixed size LRU cache.
@@ -46,7 +48,217 @@ Hence, it is better to understand what is the situation is (your project wants a
 (For more performance details, you can clone the project and run `cargo bench`. The source code for benchmark is in the [benches](benches), I am also looking forward to anyone's help for writing more reasonable test cases for benchmark).
 
 ## Usages
+- [**`RawLRU`** and **`LRUCache`**](#rawlru-and-lrucache)
+  - [Default](#default-no-op-callback)
+  - [Custom OnEvictCallback](#custom-callback)
+- [**`AdaptiveCache`**](#adaptivecache-adaptive-replacement-cache)
+- [**`TwoQueueCache`**](#twoqueuecache)
 
+### RawLRU and LRUCache
+`RawLRU` is the basic data structure over the crate, it has a generic type `E: OnEvictCallback`, which support users to write and apply their own callback policy.
+
+`LRUCache` is a type alias for `RawLRU<K, V, DefaultOnEvictCallback, S>`, so it does not support custom the `on_evict` callback. 
+
+More methods and examples, please see [documents].
+
+#### Default No-op Callback 
+Use `RawLRU` with default noop callback.
+
+```rust
+use hashicorp_lru::{RawLRU, PutResult};
+  
+fn main() {
+    let mut cache = RawLRU::new(2).unwrap();
+    // fill the cache
+    assert_eq!(cache.put(1, 1), PutResult::Put);
+    assert_eq!(cache.put(2, 2), PutResult::Put);
+      
+    // put 3, should evict the entry (1, 1)
+    assert_eq!(cache.put(3, 3), PutResult::Evicted {key: 1,value: 1});
+      
+    // put 4, should evict the entry (2, 2)
+    assert_eq!(cache.put(4, 4), PutResult::Evicted {key: 2,value: 2});
+      
+    // get 3, should update the recent-ness
+    assert_eq!(cache.get(&3), Some(&3));
+      
+    // put 5, should evict the entry (4, 4)
+    assert_eq!(cache.put(5, 5), PutResult::Evicted {key: 4,value: 4});
+}
+```
+
+#### Custom Callback
+Use `RawLRU` with a custom callback.
+
+```rust
+use std::sync::Arc;
+use std::sync::atomic::{AtomicU64, Ordering};
+use hashicorp_lru::{OnEvictCallback, RawLRU, PutResult};
+
+// EvictedCounter is a callback which is used to record the number of evicted entries.
+struct EvictedCounter {
+    ctr: Arc<AtomicU64>,
+}
+
+impl EvictedCounter {
+    pub fn new(ctr: Arc<AtomicU64>) -> Self {
+        Self {
+            ctr,
+        }
+    }
+}
+
+impl OnEvictCallback for EvictedCounter {
+    fn on_evict<K, V>(&self, _: &K, _: &V) {
+        self.ctr.fetch_add(1, Ordering::SeqCst);
+    }
+}
+   
+fn main() {
+    let counter = Arc::new(AtomicU64::new(0));
+       
+    let mut cache: RawLRU<u64, u64, EvictedCounter> = RawLRU::with_on_evict_cb(2, EvictedCounter::new(counter.clone())).unwrap();
+       
+    // fill the cache
+    assert_eq!(cache.put(1, 1), PutResult::Put);
+    assert_eq!(cache.put(2, 2), PutResult::Put);
+       
+    // put 3, should evict the entry (1, 1)
+    assert_eq!(cache.put(3, 3), PutResult::Evicted {key: 1,value: 1});
+       
+    // put 4, should evict the entry (2, 2)
+    assert_eq!(cache.put(4, 4), PutResult::Evicted {key: 2,value: 2});
+       
+    // get 3, should update the recent-ness
+    assert_eq!(cache.get(&3), Some(&3));
+       
+    // put 5, should evict the entry (4, 4)
+    assert_eq!(cache.put(5, 5), PutResult::Evicted {key: 4,value: 4});
+       
+    assert_eq!(counter.load(Ordering::SeqCst), 2); 
+}
+```
+
+### AdaptiveCache (Adaptive Replacement Cache)
+More methods and examples, please see [documents].
+
+```rust
+use hashicorp_lru::AdaptiveCache;
+ 
+fn main() {
+    let mut cache = AdaptiveCache::new(4).unwrap();
+     
+    // fill recent
+    (0..4).for_each(|i| cache.put(i, i));
+     
+    // move to frequent
+    cache.get(&0);
+    cache.get(&1);
+    assert_eq!(cache.frequent_len(), 2);
+     
+    // evict from recent
+    cache.put(4, 4);
+    assert_eq!(cache.recent_evict_len(), 1);
+     
+    // current state
+    // recent:          (MRU) [4, 3] (LRU)
+    // frequent:        (MRU) [1, 0] (LRU)
+    // recent evict:    (MRU) [2] (LRU)
+    // frequent evict:  (MRU) [] (LRU)
+     
+    // Add 2, should cause hit on recent_evict
+    cache.put(2, 2);
+    assert_eq!(cache.recent_evict_len(), 1);
+    assert_eq!(cache.partition(), 1);
+    assert_eq!(cache.frequent_len(), 3);
+     
+    // Current state
+    // recent LRU:      (MRU) [4] (LRU)
+    // frequent LRU:    (MRU) [2, 1, 0] (LRU)
+    // recent evict:    (MRU) [3] (LRU)
+    // frequent evict:  (MRU) [] (LRU)
+     
+    // Add 4, should migrate to frequent
+    cache.put(4, 4);
+    assert_eq!(cache.recent_len(), 0);
+    assert_eq!(cache.frequent_len(), 4);
+     
+    // Current state
+    // recent LRU:      (MRU) [] (LRU)
+    // frequent LRU:    (MRU) [4, 2, 1, 0] (LRU)
+    // recent evict:    (MRU) [3] (LRU)
+    // frequent evict:  (MRU) [] (LRU)
+     
+    // Add 5, should evict to b2
+    cache.put(5, 5);
+    assert_eq!(cache.recent_len(), 1);
+    assert_eq!(cache.frequent_len(), 3);
+    assert_eq!(cache.frequent_evict_len(), 1);
+     
+    // Current state
+    // recent:          (MRU) [5] (LRU)
+    // frequent:        (MRU) [4, 2, 1] (LRU)
+    // recent evict:    (MRU) [3] (LRU)
+    // frequent evict:  (MRU) [0] (LRU)
+     
+    // Add 0, should decrease p
+    cache.put(0, 0);
+    assert_eq!(cache.recent_len(), 0);
+    assert_eq!(cache.frequent_len(), 4);
+    assert_eq!(cache.recent_evict_len(), 2);
+    assert_eq!(cache.frequent_evict_len(), 0);
+    assert_eq!(cache.partition(), 0);
+     
+    // Current state
+    // recent:         (MRU) [] (LRU)
+    // frequent:       (MRU) [0, 4, 2, 1] (LRU)
+    // recent evict:   (MRU) [5, 3] (LRU)
+    // frequent evict: (MRU) [0] (LRU)
+}
+```
+
+### TwoQueueCache
+More methods and examples, please see [documents].
+
+```rust
+use hashicorp_lru::{TwoQueueCache, PutResult};
+
+fn main() {
+    let mut cache = TwoQueueCache::new(4).unwrap();
+     
+    // Add 1,2,3,4,
+    (1..=4).for_each(|i| { assert_eq!(cache.put(i, i), PutResult::Put);});
+     
+    // Add 5 -> Evict 1 to ghost LRU
+    assert_eq!(cache.put(5, 5), PutResult::Put);
+     
+    // Pull in the recently evicted
+    assert_eq!(cache.put(1, 1), PutResult::Update(1));
+     
+    // Add 6, should cause another recent evict
+    assert_eq!(cache.put(6, 6), PutResult::<i32, i32>::Put);
+     
+    // Add 7, should evict an entry from ghost LRU.
+    assert_eq!(cache.put(7, 7), PutResult::Evicted { key: 2, value: 2 });
+     
+    // Add 2, should evict an entry from ghost LRU
+    assert_eq!(cache.put(2, 11), PutResult::Evicted { key: 3, value: 3 });
+     
+    // Add 4, should put the entry from ghost LRU to freq LRU
+    assert_eq!(cache.put(4, 11), PutResult::Update(4));
+     
+    // move all entry in recent to freq.
+    assert_eq!(cache.put(2, 22), PutResult::Update(11));
+    assert_eq!(cache.put(7, 77), PutResult::<i32, i32>::Update(7));
+     
+    // Add 6, should put the entry from ghost LRU to freq LRU, and evicted one
+    // entry
+    assert_eq!(cache.put(6, 66), PutResult::EvictedAndUpdate { evicted: (5, 5), update: 6});
+    assert_eq!(cache.recent_len(), 0);
+    assert_eq!(cache.ghost_len(), 1);
+    assert_eq!(cache.frequent_len(), 4);
+}
+```
 
 ## Acknowledgments
 - The implementation of `RawLRU` is highly inspired by [Jerome Froelich's LRU implementation](https://github.com/jeromefroe/lru-rs) and [`std::collections`] library of Rust.
@@ -78,3 +290,5 @@ shall be dual licensed as above, without any additional terms or conditions.
 [license-apache-url]: https://opensource.org/licenses/Apache-2.0
 [license-mit-url]: https://opensource.org/licenses/Apache-2.0
 [crates-url]: https://crates.io/crates/hashicorp-lru
+[doc-url]: https://docs.rs/hashicorp-lru
+[documents]: https://docs.rs/hashicorp-lru

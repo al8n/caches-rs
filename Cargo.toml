@@ -26,10 +26,6 @@ name = "arc_cache"
 harness = false
 
 [[example]]
-name = "lru_cache"
-path = "examples/lru_cache.rs"
-
-[[example]]
 name = "hit_ratio"
 path = "examples/hit_ratio.rs"
 
