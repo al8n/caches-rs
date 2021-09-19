@@ -41,7 +41,7 @@ In theory, `AdaptiveCache` and `TwoQueueCache` add some additional tracking over
 
 However, the implementation for the `RawLRU` uses [`Box`] and a raw pointer for each entry to break the limitation of the Rust language (It does not use [`Rc`], because [`Rc`] is slower). Thus, in practice, `TwoQueueCache` is **2.5x** computationally slower than `LRUCache` and `AdaptiveCache` is **3x** computationally slower than `LRUCache`, because `TwoQueueCache` and `AdaptiveCache` has to do more box and re-box than `LRUCache`, even though I try my best to avoid boxing and re-boxing and use [`mem::swap`] to avoid memory allocating and deallocating.
 
-Hence, it is better to understand what is the situation is, (your project wants a higher hit ratio or faster computationally performance), and then choose the reasonable Cache in your project.
+Hence, it is better to understand what is the situation is (your project wants a cache with a higher hit ratio or faster computationally performance), and then choose the reasonable Cache in your project.
 
 (For more performance details, you can clone the project and run `cargo bench`. The source code for benchmark is in the [benches](benches), I am also looking forward to anyone's help for writing more reasonable test cases for benchmark).
 

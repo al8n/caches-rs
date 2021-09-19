@@ -1205,14 +1205,14 @@ impl<K: Hash + Eq, V, E: OnEvictCallback, S: BuildHasher> RawLRU<K, V, E, S> {
         }
     }
 
-    pub(crate) fn detach<'a>(&'a mut self, node: *mut EntryNode<K, V>) {
+    pub(crate) fn detach(&mut self, node: *mut EntryNode<K, V>) {
         unsafe {
             (*(*node).prev).next = (*node).next;
             (*(*node).next).prev = (*node).prev;
         }
     }
 
-    pub(crate) fn attach<'a>(&'a mut self, node: *mut EntryNode<K, V>) {
+    pub(crate) fn attach(&mut self, node: *mut EntryNode<K, V>) {
         unsafe {
             (*node).next = (*self.head).next;
             (*node).prev = self.head;

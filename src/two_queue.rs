@@ -1,5 +1,5 @@
 use crate::raw::EntryNode;
-use crate::{CacheError, DefaultEvictCallback, DefaultHashBuilder, KeyRef, PutResult, RawLRU};
+use crate::{CacheError, DefaultEvictCallback, DefaultHashBuilder, KeyRef, PutResult, RawLRU, ValuesLRUIterMut, MRUIter, LRUIter, MRUIterMut, LRUIterMut, ValuesLRUIter, ValuesMRUIterMut, ValuesMRUIter, KeysLRUIter, KeysMRUIter};
 use alloc::boxed::Box;
 use alloc::fmt;
 use core::borrow::Borrow;
@@ -745,6 +745,754 @@ impl<K: Hash + Eq, V, RH: BuildHasher, FH: BuildHasher, GH: BuildHasher>
     /// ```
     pub fn cap(&self) -> usize {
         self.size
+    }
+
+    /// An iterator visiting all keys of recent LRU in most-recently used order. The iterator element type is
+    /// `&'a K`.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use hashicorp_lru::TwoQueueCache;
+    ///
+    /// let mut cache = TwoQueueCache::new(3).unwrap();
+    /// cache.put("a", 1);
+    /// cache.put("b", 2);
+    /// cache.put("c", 3);
+    ///
+    /// for key in cache.recent_keys() {
+    ///     println!("key: {}", key);
+    /// }
+    /// ```
+    pub fn recent_keys(&self) -> KeysMRUIter<'_, K, V> {
+        self.recent.keys()
+    }
+
+    /// An iterator visiting all keys of recent LRU in less-recently used order. The iterator element type is
+    /// `&'a K`.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use hashicorp_lru::TwoQueueCache;
+    ///
+    /// let mut cache = TwoQueueCache::new(3).unwrap();
+    /// cache.put("a", 1);
+    /// cache.put("b", 2);
+    /// cache.put("c", 3);
+    ///
+    /// for key in cache.recent_keys_lru() {
+    ///     println!("key: {}", key);
+    /// }
+    /// ```
+    pub fn recent_keys_lru(&self) -> KeysLRUIter<'_, K, V> {
+        self.recent.keys_lru()
+    }
+
+    /// An iterator visiting all values of recent LRU in most-recently used order. The iterator element type is
+    /// `&'a V`.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use hashicorp_lru::TwoQueueCache;
+    ///
+    /// let mut cache = TwoQueueCache::new(3).unwrap();
+    /// cache.put("a", 1);
+    /// cache.put("b", 2);
+    /// cache.put("c", 3);
+    ///
+    /// for val in cache.recent_values() {
+    ///     println!("val: {}",  val);
+    /// }
+    /// ```
+    pub fn recent_values(&self) -> ValuesMRUIter<'_, K, V> {
+        self.recent.values()
+    }
+
+    /// An iterator visiting all values in less-recently used order. The iterator element type is
+    /// `&'a V`.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use hashicorp_lru::TwoQueueCache;
+    ///
+    /// let mut cache = TwoQueueCache::new(3).unwrap();
+    /// cache.put("a", 1);
+    /// cache.put("b", 2);
+    /// cache.put("c", 3);
+    ///
+    /// for val in cache.recent_values_lru() {
+    ///     println!("val: {}", val);
+    /// }
+    /// ```
+    pub fn recent_values_lru(&self) -> ValuesLRUIter<'_, K, V> {
+        self.recent.values_lru()
+    }
+
+    /// An iterator visiting all values of recent LRU in most-recently used order. The iterator element type is
+    /// `&'a mut V`.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use hashicorp_lru::TwoQueueCache;
+    ///
+    /// let mut cache = TwoQueueCache::new(3).unwrap();
+    /// cache.put("a", 1);
+    /// cache.put("b", 2);
+    /// cache.put("c", 3);
+    ///
+    /// for val in cache.recent_values_mut() {
+    ///     println!("val: {}", val);
+    /// }
+    /// ```
+    pub fn recent_values_mut(&mut self) -> ValuesMRUIterMut<'_, K, V> {
+        self.recent.values_mut()
+    }
+
+    /// An iterator visiting all values of recent LRU in less-recently used order. The iterator element type is
+    /// `&'a mut V`.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use hashicorp_lru::TwoQueueCache;
+    ///
+    /// let mut cache = TwoQueueCache::new(3).unwrap();
+    /// cache.put("a", 1);
+    /// cache.put("b", 2);
+    /// cache.put("c", 3);
+    ///
+    /// for val in cache.recent_values_lru_mut() {
+    ///     println!("val: {}", val);
+    /// }
+    /// ```
+    pub fn recent_values_lru_mut(&mut self) -> ValuesLRUIterMut<'_, K, V> {
+        self.recent.values_lru_mut()
+    }
+
+    /// An iterator visiting all entries of recent LRU in most-recently used order. The iterator element type is
+    /// `(&'a K, &'a V)`.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use hashicorp_lru::TwoQueueCache;
+    ///
+    /// let mut cache = TwoQueueCache::new(3).unwrap();
+    /// cache.put("a", 1);
+    /// cache.put("b", 2);
+    /// cache.put("c", 3);
+    ///
+    /// for (key, val) in cache.recent_iter() {
+    ///     println!("key: {} val: {}", key, val);
+    /// }
+    /// ```
+    pub fn recent_iter(&self) -> MRUIter<'_, K, V> {
+        self.recent.iter()
+    }
+
+    /// An iterator visiting all entries of recent LRU in less-recently used order. The iterator element type is
+    /// `(&'a K, &'a V)`.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use hashicorp_lru::TwoQueueCache;
+    ///
+    /// let mut cache = TwoQueueCache::new(3).unwrap();
+    /// cache.put("a", 1);
+    /// cache.put("b", 2);
+    /// cache.put("c", 3);
+    ///
+    /// for (key, val) in cache.recent_iter_lru() {
+    ///     println!("key: {} val: {}", key, val);
+    /// }
+    /// ```
+    pub fn recent_iter_lru(&self) -> LRUIter<'_, K, V> {
+        self.recent.iter_lru()
+    }
+
+    /// An iterator visiting all entries of recent LRU in most-recently-used order, giving a mutable reference on
+    /// V.  The iterator element type is `(&'a K, &'a mut V)`.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use hashicorp_lru::TwoQueueCache;
+    ///
+    /// struct HddBlock {
+    ///     idx: u64,
+    ///     dirty: bool,
+    ///     data: [u8; 512]
+    /// }
+    ///
+    /// let mut cache = TwoQueueCache::new(3).unwrap();
+    ///
+    /// // put in recent list
+    /// cache.put(0, HddBlock { idx: 0, dirty: false, data: [0x00; 512]});
+    /// cache.put(1, HddBlock { idx: 1, dirty: true,  data: [0x55; 512]});
+    /// cache.put(2, HddBlock { idx: 2, dirty: true,  data: [0x77; 512]});
+    ///
+    /// let mut ctr = 2i32;
+    /// // write dirty blocks to disk.
+    /// for (block_id, block) in cache.recent_iter_mut() {
+    ///     if block.dirty {
+    ///         // write block to disk
+    ///         block.dirty = false
+    ///     }
+    ///     assert_eq!(*block_id, ctr);
+    ///     ctr -= 1;
+    /// }
+    /// ```
+    pub fn recent_iter_mut(&mut self) -> MRUIterMut<'_, K, V> {
+        self.recent.iter_mut()
+    }
+
+    /// An iterator visiting all entries of recent LRU in less-recently-used order, giving a mutable reference on
+    /// V.  The iterator element type is `(&'a K, &'a mut V)`.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use hashicorp_lru::TwoQueueCache;
+    ///
+    /// struct HddBlock {
+    ///     idx: u64,
+    ///     dirty: bool,
+    ///     data: [u8; 512]
+    /// }
+    ///
+    /// let mut cache = TwoQueueCache::new(3).unwrap();
+    ///
+    /// // put in recent list
+    /// cache.put(0, HddBlock { idx: 0, dirty: false, data: [0x00; 512]});
+    /// cache.put(1, HddBlock { idx: 1, dirty: true,  data: [0x55; 512]});
+    /// cache.put(2, HddBlock { idx: 2, dirty: true,  data: [0x77; 512]});
+    ///
+    /// // upgrade to frequent list
+    /// cache.put(0, HddBlock { idx: 0, dirty: false, data: [0x00; 512]});
+    /// cache.put(1, HddBlock { idx: 1, dirty: true,  data: [0x55; 512]});
+    /// cache.put(2, HddBlock { idx: 2, dirty: true,  data: [0x77; 512]});
+    ///
+    /// let mut ctr = 0i32;
+    ///
+    /// // write dirty blocks to disk.
+    /// for (block_id, block) in cache.frequent_iter_lru_mut() {
+    ///     if block.dirty {
+    ///         // write block to disk
+    ///         block.dirty = false
+    ///     }
+    ///     assert_eq!(*block_id, ctr);
+    ///     ctr += 1;
+    /// }
+    /// ```
+    pub fn recent_iter_lru_mut(&mut self) -> LRUIterMut<'_, K, V> {
+        self.recent.iter_lru_mut()
+    }
+
+    /// An iterator visiting all keys of ghost LRU in most-recently used order. The iterator element type is
+    /// `&'a K`.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use hashicorp_lru::TwoQueueCache;
+    ///
+    /// let mut cache = TwoQueueCache::new(3).unwrap();
+    /// cache.put("a", 1);
+    /// cache.put("b", 2);
+    /// cache.put("c", 3);
+    ///
+    /// for key in cache.ghost_keys() {
+    ///     println!("key: {}", key);
+    /// }
+    /// ```
+    pub fn ghost_keys(&self) -> KeysMRUIter<'_, K, V> {
+        self.ghost.keys()
+    }
+
+    /// An iterator visiting all keys of ghost LRU in less-recently used order. The iterator element type is
+    /// `&'a K`.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use hashicorp_lru::TwoQueueCache;
+    ///
+    /// let mut cache = TwoQueueCache::new(3).unwrap();
+    /// cache.put("a", 1);
+    /// cache.put("b", 2);
+    /// cache.put("c", 3);
+    ///
+    /// for key in cache.ghost_keys_lru() {
+    ///     println!("key: {}", key);
+    /// }
+    /// ```
+    pub fn ghost_keys_lru(&self) -> KeysLRUIter<'_, K, V> {
+        self.ghost.keys_lru()
+    }
+
+    /// An iterator visiting all values of ghost LRU in most-recently used order. The iterator element type is
+    /// `&'a V`.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use hashicorp_lru::TwoQueueCache;
+    ///
+    /// let mut cache = TwoQueueCache::new(3).unwrap();
+    /// cache.put("a", 1);
+    /// cache.put("b", 2);
+    /// cache.put("c", 3);
+    ///
+    /// for val in cache.ghost_values() {
+    ///     println!("val: {}",  val);
+    /// }
+    /// ```
+    pub fn ghost_values(&self) -> ValuesMRUIter<'_, K, V> {
+        self.ghost.values()
+    }
+
+    /// An iterator visiting all values in less-recently used order. The iterator element type is
+    /// `&'a V`.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use hashicorp_lru::TwoQueueCache;
+    ///
+    /// let mut cache = TwoQueueCache::new(3).unwrap();
+    /// cache.put("a", 1);
+    /// cache.put("b", 2);
+    /// cache.put("c", 3);
+    ///
+    /// for val in cache.ghost_values_lru() {
+    ///     println!("val: {}", val);
+    /// }
+    /// ```
+    pub fn ghost_values_lru(&self) -> ValuesLRUIter<'_, K, V> {
+        self.ghost.values_lru()
+    }
+
+    /// An iterator visiting all values of ghost LRU in most-recently used order. The iterator element type is
+    /// `&'a mut V`.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use hashicorp_lru::TwoQueueCache;
+    ///
+    /// let mut cache = TwoQueueCache::new(3).unwrap();
+    /// cache.put("a", 1);
+    /// cache.put("b", 2);
+    /// cache.put("c", 3);
+    ///
+    /// for val in cache.ghost_values_mut() {
+    ///     println!("val: {}", val);
+    /// }
+    /// ```
+    pub fn ghost_values_mut(&mut self) -> ValuesMRUIterMut<'_, K, V> {
+        self.ghost.values_mut()
+    }
+
+    /// An iterator visiting all values of ghost LRU in less-recently used order. The iterator element type is
+    /// `&'a mut V`.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use hashicorp_lru::TwoQueueCache;
+    ///
+    /// let mut cache = TwoQueueCache::new(3).unwrap();
+    /// cache.put("a", 1);
+    /// cache.put("b", 2);
+    /// cache.put("c", 3);
+    ///
+    /// for val in cache.ghost_values_lru_mut() {
+    ///     println!("val: {}", val);
+    /// }
+    /// ```
+    pub fn ghost_values_lru_mut(&mut self) -> ValuesLRUIterMut<'_, K, V> {
+        self.ghost.values_lru_mut()
+    }
+
+    /// An iterator visiting all entries of ghost LRU in most-recently used order. The iterator element type is
+    /// `(&'a K, &'a V)`.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use hashicorp_lru::TwoQueueCache;
+    ///
+    /// let mut cache = TwoQueueCache::new(3).unwrap();
+    /// cache.put("a", 1);
+    /// cache.put("b", 2);
+    /// cache.put("c", 3);
+    ///
+    /// for (key, val) in cache.ghost_iter() {
+    ///     println!("key: {} val: {}", key, val);
+    /// }
+    /// ```
+    pub fn ghost_iter(&self) -> MRUIter<'_, K, V> {
+        self.ghost.iter()
+    }
+
+    /// An iterator visiting all entries of ghost LRU in less-recently used order. The iterator element type is
+    /// `(&'a K, &'a V)`.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use hashicorp_lru::TwoQueueCache;
+    ///
+    /// let mut cache = TwoQueueCache::new(3).unwrap();
+    /// cache.put("a", 1);
+    /// cache.put("b", 2);
+    /// cache.put("c", 3);
+    ///
+    /// for (key, val) in cache.ghost_iter_lru() {
+    ///     println!("key: {} val: {}", key, val);
+    /// }
+    /// ```
+    pub fn ghost_iter_lru(&self) -> LRUIter<'_, K, V> {
+        self.ghost.iter_lru()
+    }
+
+    /// An iterator visiting all entries of ghost LRU in most-recently-used order, giving a mutable reference on
+    /// V.  The iterator element type is `(&'a K, &'a mut V)`.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use hashicorp_lru::TwoQueueCache;
+    ///
+    /// struct HddBlock {
+    ///     idx: u64,
+    ///     dirty: bool,
+    ///     data: [u8; 512]
+    /// }
+    ///
+    /// let mut cache = TwoQueueCache::new(3).unwrap();
+    ///
+    /// // put in recent list
+    /// cache.put(0, HddBlock { idx: 0, dirty: false, data: [0x00; 512]});
+    /// cache.put(1, HddBlock { idx: 1, dirty: true,  data: [0x55; 512]});
+    /// cache.put(2, HddBlock { idx: 2, dirty: true,  data: [0x77; 512]});
+    ///
+    /// // upgrade to frequent list
+    /// cache.put(0, HddBlock { idx: 0, dirty: false, data: [0x00; 512]});
+    /// cache.put(1, HddBlock { idx: 1, dirty: true,  data: [0x55; 512]});
+    /// cache.put(2, HddBlock { idx: 2, dirty: true,  data: [0x77; 512]});
+    ///
+    /// let mut ctr = 2i32;
+    /// // write dirty blocks to disk.
+    /// for (block_id, block) in cache.ghost_iter_mut() {
+    ///     if block.dirty {
+    ///         // write block to disk
+    ///         block.dirty = false
+    ///     }
+    ///     assert_eq!(*block_id, ctr);
+    ///     ctr -= 1;
+    /// }
+    /// ```
+    pub fn ghost_iter_mut(&mut self) -> MRUIterMut<'_, K, V> {
+        self.ghost.iter_mut()
+    }
+
+    /// An iterator visiting all entries of ghost LRU in less-recently-used order, giving a mutable reference on
+    /// V.  The iterator element type is `(&'a K, &'a mut V)`.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use hashicorp_lru::TwoQueueCache;
+    ///
+    /// struct HddBlock {
+    ///     idx: u64,
+    ///     dirty: bool,
+    ///     data: [u8; 512]
+    /// }
+    ///
+    /// let mut cache = TwoQueueCache::new(3).unwrap();
+    ///
+    /// // put in recent list
+    /// cache.put(0, HddBlock { idx: 0, dirty: false, data: [0x00; 512]});
+    /// cache.put(1, HddBlock { idx: 1, dirty: true,  data: [0x55; 512]});
+    /// cache.put(2, HddBlock { idx: 2, dirty: true,  data: [0x77; 512]});
+    ///
+    /// // upgrade to frequent list
+    /// cache.put(0, HddBlock { idx: 0, dirty: false, data: [0x00; 512]});
+    /// cache.put(1, HddBlock { idx: 1, dirty: true,  data: [0x55; 512]});
+    /// cache.put(2, HddBlock { idx: 2, dirty: true,  data: [0x77; 512]});
+    ///
+    /// let mut ctr = 0i32;
+    ///
+    /// // write dirty blocks to disk.
+    /// for (block_id, block) in cache.frequent_iter_lru_mut() {
+    ///     if block.dirty {
+    ///         // write block to disk
+    ///         block.dirty = false
+    ///     }
+    ///     assert_eq!(*block_id, ctr);
+    ///     ctr += 1;
+    /// }
+    /// ```
+    pub fn ghost_iter_lru_mut(&mut self) -> LRUIterMut<'_, K, V> {
+        self.ghost.iter_lru_mut()
+    }
+
+    /// An iterator visiting all keys of frequent LRU in most-recently used order. The iterator element type is
+    /// `&'a K`.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use hashicorp_lru::TwoQueueCache;
+    ///
+    /// let mut cache = TwoQueueCache::new(3).unwrap();
+    /// cache.put("a", 1);
+    /// cache.put("b", 2);
+    /// cache.put("c", 3);
+    ///
+    /// for key in cache.frequent_keys() {
+    ///     println!("key: {}", key);
+    /// }
+    /// ```
+    pub fn frequent_keys(&self) -> KeysMRUIter<'_, K, V> {
+        self.frequent.keys()
+    }
+
+    /// An iterator visiting all keys of frequent LRU in less-recently used order. The iterator element type is
+    /// `&'a K`.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use hashicorp_lru::TwoQueueCache;
+    ///
+    /// let mut cache = TwoQueueCache::new(3).unwrap();
+    /// cache.put("a", 1);
+    /// cache.put("b", 2);
+    /// cache.put("c", 3);
+    ///
+    /// for key in cache.frequent_keys_lru() {
+    ///     println!("key: {}", key);
+    /// }
+    /// ```
+    pub fn frequent_keys_lru(&self) -> KeysLRUIter<'_, K, V> {
+        self.frequent.keys_lru()
+    }
+
+    /// An iterator visiting all values of frequent LRU in most-recently used order. The iterator element type is
+    /// `&'a V`.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use hashicorp_lru::TwoQueueCache;
+    ///
+    /// let mut cache = TwoQueueCache::new(3).unwrap();
+    /// cache.put("a", 1);
+    /// cache.put("b", 2);
+    /// cache.put("c", 3);
+    ///
+    /// for val in cache.frequent_values() {
+    ///     println!("val: {}",  val);
+    /// }
+    /// ```
+    pub fn frequent_values(&self) -> ValuesMRUIter<'_, K, V> {
+        self.frequent.values()
+    }
+
+    /// An iterator visiting all values of frequent LRU in less-recently used order. The iterator element type is
+    /// `&'a V`.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use hashicorp_lru::TwoQueueCache;
+    ///
+    /// let mut cache = TwoQueueCache::new(3).unwrap();
+    /// cache.put("a", 1);
+    /// cache.put("b", 2);
+    /// cache.put("c", 3);
+    ///
+    /// for val in cache.frequent_values_lru() {
+    ///     println!("val: {}", val);
+    /// }
+    /// ```
+    pub fn frequent_values_lru(&self) -> ValuesLRUIter<'_, K, V> {
+        self.frequent.values_lru()
+    }
+
+    /// An iterator visiting all values of frequent LRU in most-recently used order. The iterator element type is
+    /// `&'a mut V`.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use hashicorp_lru::TwoQueueCache;
+    ///
+    /// let mut cache = TwoQueueCache::new(3).unwrap();
+    /// cache.put("a", 1);
+    /// cache.put("b", 2);
+    /// cache.put("c", 3);
+    ///
+    /// for val in cache.frequent_values_mut() {
+    ///     println!("val: {}", val);
+    /// }
+    /// ```
+    pub fn frequent_values_mut(&mut self) -> ValuesMRUIterMut<'_, K, V> {
+        self.frequent.values_mut()
+    }
+
+    /// An iterator visiting all values of frequent LRU in less-recently used order. The iterator element type is
+    /// `&'a mut V`.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use hashicorp_lru::TwoQueueCache;
+    ///
+    /// let mut cache = TwoQueueCache::new(3).unwrap();
+    /// cache.put("a", 1);
+    /// cache.put("b", 2);
+    /// cache.put("c", 3);
+    ///
+    /// for val in cache.frequent_values_lru_mut() {
+    ///     println!("val: {}", val);
+    /// }
+    /// ```
+    pub fn frequent_values_lru_mut(&mut self) -> ValuesLRUIterMut<'_, K, V> {
+        self.frequent.values_lru_mut()
+    }
+
+    /// An iterator visiting all entries of frequent LRU in most-recently used order. The iterator element type is
+    /// `(&'a K, &'a V)`.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use hashicorp_lru::TwoQueueCache;
+    ///
+    /// let mut cache = TwoQueueCache::new(3).unwrap();
+    /// cache.put("a", 1);
+    /// cache.put("b", 2);
+    /// cache.put("c", 3);
+    ///
+    /// for (key, val) in cache.frequent_iter() {
+    ///     println!("key: {} val: {}", key, val);
+    /// }
+    /// ```
+    pub fn frequent_iter(&self) -> MRUIter<'_, K, V> {
+        self.frequent.iter()
+    }
+
+    /// An iterator visiting all entries of frequent LRU in less-recently used order. The iterator element type is
+    /// `(&'a K, &'a V)`.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use hashicorp_lru::TwoQueueCache;
+    ///
+    /// let mut cache = TwoQueueCache::new(3).unwrap();
+    /// cache.put("a", 1);
+    /// cache.put("b", 2);
+    /// cache.put("c", 3);
+    ///
+    /// for (key, val) in cache.frequent_iter_lru() {
+    ///     println!("key: {} val: {}", key, val);
+    /// }
+    /// ```
+    pub fn frequent_iter_lru(&self) -> LRUIter<'_, K, V> {
+        self.frequent.iter_lru()
+    }
+
+    /// An iterator visiting all entries of frequent LRU in most-recently-used order, giving a mutable reference on
+    /// V.  The iterator element type is `(&'a K, &'a mut V)`.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use hashicorp_lru::TwoQueueCache;
+    ///
+    /// struct HddBlock {
+    ///     idx: u64,
+    ///     dirty: bool,
+    ///     data: [u8; 512]
+    /// }
+    ///
+    /// let mut cache = TwoQueueCache::new(3).unwrap();
+    /// 
+    /// // put in recent list
+    /// cache.put(0, HddBlock { idx: 0, dirty: false, data: [0x00; 512]});
+    /// cache.put(1, HddBlock { idx: 1, dirty: true,  data: [0x55; 512]});
+    /// cache.put(2, HddBlock { idx: 2, dirty: true,  data: [0x77; 512]});
+    /// 
+    /// // upgrade to frequent list
+    /// cache.put(0, HddBlock { idx: 0, dirty: false, data: [0x00; 512]});
+    /// cache.put(1, HddBlock { idx: 1, dirty: true,  data: [0x55; 512]});
+    /// cache.put(2, HddBlock { idx: 2, dirty: true,  data: [0x77; 512]});
+    /// 
+    /// let mut ctr = 2i32;
+    /// // write dirty blocks to disk.
+    /// for (block_id, block) in cache.frequent_iter_mut() {
+    ///     if block.dirty {
+    ///         // write block to disk
+    ///         block.dirty = false
+    ///     }
+    ///     assert_eq!(*block_id, ctr);
+    ///     ctr -= 1;
+    /// }
+    /// ```
+    pub fn frequent_iter_mut(&mut self) -> MRUIterMut<'_, K, V> {
+        self.frequent.iter_mut()
+    }
+
+    /// An iterator visiting all entries of frequent LRU in less-recently-used order, giving a mutable reference on
+    /// V.  The iterator element type is `(&'a K, &'a mut V)`.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use hashicorp_lru::TwoQueueCache;
+    ///
+    /// struct HddBlock {
+    ///     idx: u64,
+    ///     dirty: bool,
+    ///     data: [u8; 512]
+    /// }
+    ///
+    /// let mut cache = TwoQueueCache::new(3).unwrap();
+    ///
+    /// // put in recent list
+    /// cache.put(0, HddBlock { idx: 0, dirty: false, data: [0x00; 512]});
+    /// cache.put(1, HddBlock { idx: 1, dirty: true,  data: [0x55; 512]});
+    /// cache.put(2, HddBlock { idx: 2, dirty: true,  data: [0x77; 512]});
+    ///
+    /// // upgrade to frequent list
+    /// cache.put(0, HddBlock { idx: 0, dirty: false, data: [0x00; 512]});
+    /// cache.put(1, HddBlock { idx: 1, dirty: true,  data: [0x55; 512]});
+    /// cache.put(2, HddBlock { idx: 2, dirty: true,  data: [0x77; 512]});
+    ///
+    /// let mut ctr = 0i32;
+    /// 
+    /// // write dirty blocks to disk.
+    /// for (block_id, block) in cache.frequent_iter_lru_mut() {
+    ///     if block.dirty {
+    ///         // write block to disk
+    ///         block.dirty = false
+    ///     }
+    ///     assert_eq!(*block_id, ctr);
+    ///     ctr += 1;
+    /// }
+    /// ```
+    pub fn frequent_iter_lru_mut(&mut self) -> LRUIterMut<'_, K, V> {
+        self.frequent.iter_lru_mut()
     }
 }
 
