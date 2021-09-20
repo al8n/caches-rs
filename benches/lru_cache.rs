@@ -1,6 +1,6 @@
 use criterion::{black_box, criterion_group, criterion_main, BatchSize, Criterion};
 use fnv::FnvBuildHasher;
-use hashicorp_lru::LRUCache;
+use caches::LRUCache;
 use rand::{thread_rng, Rng};
 use rustc_hash::FxHasher;
 use std::hash::BuildHasherDefault;

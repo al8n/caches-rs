@@ -2,7 +2,7 @@
 //
 // MIT License
 //
-// Copyright (c) 2021 Al Liu (https://github.com/al8n/hashicorp-lru)
+// Copyright (c) 2021 Al Liu (https://github.com/al8n/caches)
 //
 // Copyright (c) 2016 Jerome Froelich (https://github.com/jeromefroe/lru-rs)
 //
@@ -85,7 +85,7 @@ fn check_size(size: usize) -> Result<(), CacheError> {
 /// # Example
 /// - Use [`RawLRU`] with default noop callback.
 /// ```rust
-/// use hashicorp_lru::{RawLRU, PutResult};
+/// use caches::{RawLRU, PutResult};
 ///
 /// let mut cache = RawLRU::new(2).unwrap();
 /// // fill the cache
@@ -109,7 +109,7 @@ fn check_size(size: usize) -> Result<(), CacheError> {
 /// ```rust
 /// use std::sync::Arc;
 /// use std::sync::atomic::{AtomicU64, Ordering};
-/// use hashicorp_lru::{OnEvictCallback, RawLRU, PutResult};
+/// use caches::{OnEvictCallback, RawLRU, PutResult};
 ///
 /// // EvictedCounter is a callback which is used to record the number of evicted entries.
 /// struct EvictedCounter {
@@ -168,7 +168,7 @@ impl<K: Hash + Eq, V> RawLRU<K, V> {
     /// # Example
     ///
     /// ```
-    /// use hashicorp_lru::RawLRU;
+    /// use caches::RawLRU;
     /// let mut cache: RawLRU<isize, &str> = RawLRU::new(10).unwrap();
     /// ```
     pub fn new(cap: usize) -> Result<Self, CacheError> {
@@ -183,7 +183,7 @@ impl<K: Hash + Eq, V, S: BuildHasher> RawLRU<K, V, DefaultEvictCallback, S> {
     /// # Example
     ///
     /// ```
-    /// use hashicorp_lru::{RawLRU, DefaultHashBuilder};
+    /// use caches::{RawLRU, DefaultHashBuilder};
     ///
     /// let s = DefaultHashBuilder::default();
     /// let mut cache: RawLRU<isize, &str> = RawLRU::with_hasher(10, s).unwrap();
@@ -206,7 +206,7 @@ impl<K: Hash + Eq, V, E: OnEvictCallback> RawLRU<K, V, E, DefaultHashBuilder> {
     /// # Example
     ///
     /// ```
-    /// use hashicorp_lru::{RawLRU, OnEvictCallback};
+    /// use caches::{RawLRU, OnEvictCallback};
     /// use std::sync::atomic::{AtomicU64, Ordering};
     ///
     /// struct EvictedCounter {
@@ -241,7 +241,7 @@ impl<K: Hash + Eq, V, E: OnEvictCallback, S: BuildHasher> RawLRU<K, V, E, S> {
     /// # Example
     ///
     /// ```
-    /// use hashicorp_lru::{RawLRU, OnEvictCallback, DefaultHashBuilder};
+    /// use caches::{RawLRU, OnEvictCallback, DefaultHashBuilder};
     /// use std::sync::atomic::{AtomicU64, Ordering};
     ///
     /// struct EvictedCounter {
@@ -303,7 +303,7 @@ impl<K: Hash + Eq, V, E: OnEvictCallback, S: BuildHasher> RawLRU<K, V, E, S> {
     /// # Example
     ///
     /// ```
-    /// use hashicorp_lru::{RawLRU, PutResult};
+    /// use caches::{RawLRU, PutResult};
     /// let mut cache = RawLRU::new(2).unwrap();
     ///
     /// assert_eq!(PutResult::Put, cache.put(1, "a"));
@@ -337,7 +337,7 @@ impl<K: Hash + Eq, V, E: OnEvictCallback, S: BuildHasher> RawLRU<K, V, E, S> {
     /// # Example
     ///
     /// ```
-    /// use hashicorp_lru::RawLRU;
+    /// use caches::RawLRU;
     /// let mut cache = RawLRU::new(2).unwrap();
     ///
     /// cache.put(1, "a");
@@ -372,7 +372,7 @@ impl<K: Hash + Eq, V, E: OnEvictCallback, S: BuildHasher> RawLRU<K, V, E, S> {
     /// # Example
     ///
     /// ```
-    /// use hashicorp_lru::RawLRU;
+    /// use caches::RawLRU;
     /// let mut cache = RawLRU::new(2).unwrap();
     ///
     /// cache.put("apple", 8);
@@ -404,7 +404,7 @@ impl<K: Hash + Eq, V, E: OnEvictCallback, S: BuildHasher> RawLRU<K, V, E, S> {
     /// # Example
     ///
     /// ```
-    /// use hashicorp_lru::RawLRU;
+    /// use caches::RawLRU;
     /// let mut cache = RawLRU::new(2).unwrap();
     ///
     /// cache.put("apple", 8);
@@ -439,7 +439,7 @@ impl<K: Hash + Eq, V, E: OnEvictCallback, S: BuildHasher> RawLRU<K, V, E, S> {
     /// # Example
     ///
     /// ```
-    /// use hashicorp_lru::RawLRU;
+    /// use caches::RawLRU;
     /// let mut cache = RawLRU::new(2).unwrap();
     ///
     /// cache.put("apple", 8);
@@ -471,7 +471,7 @@ impl<K: Hash + Eq, V, E: OnEvictCallback, S: BuildHasher> RawLRU<K, V, E, S> {
     /// # Example
     ///
     /// ```
-    /// use hashicorp_lru::RawLRU;
+    /// use caches::RawLRU;
     /// let mut cache = RawLRU::new(2).unwrap();
     ///
     /// cache.put(1, "a");
@@ -498,7 +498,7 @@ impl<K: Hash + Eq, V, E: OnEvictCallback, S: BuildHasher> RawLRU<K, V, E, S> {
     /// # Example
     ///
     /// ```
-    /// use hashicorp_lru::{RawLRU, PutResult};
+    /// use caches::{RawLRU, PutResult};
     /// let mut cache = RawLRU::new(2).unwrap();
     ///
     /// cache.put(1, "a");
@@ -524,7 +524,7 @@ impl<K: Hash + Eq, V, E: OnEvictCallback, S: BuildHasher> RawLRU<K, V, E, S> {
     /// # Example
     ///
     /// ```
-    /// use hashicorp_lru::RawLRU;
+    /// use caches::RawLRU;
     /// let mut cache = RawLRU::new(2).unwrap();
     ///
     /// cache.put(1, "a");
@@ -552,7 +552,7 @@ impl<K: Hash + Eq, V, E: OnEvictCallback, S: BuildHasher> RawLRU<K, V, E, S> {
     /// # Example
     ///
     /// ```
-    /// use hashicorp_lru::{RawLRU, PutResult};
+    /// use caches::{RawLRU, PutResult};
     /// let mut cache = RawLRU::new(2).unwrap();
     ///
     /// cache.put(1, "a");
@@ -579,7 +579,7 @@ impl<K: Hash + Eq, V, E: OnEvictCallback, S: BuildHasher> RawLRU<K, V, E, S> {
     /// # Example
     ///
     /// ```
-    /// use hashicorp_lru::RawLRU;
+    /// use caches::RawLRU;
     /// let mut cache = RawLRU::new(2).unwrap();
     ///
     /// cache.put(1, "a");
@@ -609,7 +609,7 @@ impl<K: Hash + Eq, V, E: OnEvictCallback, S: BuildHasher> RawLRU<K, V, E, S> {
     /// # Example
     ///
     /// ```
-    /// use hashicorp_lru::RawLRU;
+    /// use caches::RawLRU;
     /// let mut cache = RawLRU::new(2).unwrap();
     ///
     /// cache.put(1, "a");
@@ -638,7 +638,7 @@ impl<K: Hash + Eq, V, E: OnEvictCallback, S: BuildHasher> RawLRU<K, V, E, S> {
     /// # Example
     ///
     /// ```
-    /// use hashicorp_lru::RawLRU;
+    /// use caches::RawLRU;
     /// let mut cache = RawLRU::new(2).unwrap();
     ///
     /// cache.put(1, "a");
@@ -665,7 +665,7 @@ impl<K: Hash + Eq, V, E: OnEvictCallback, S: BuildHasher> RawLRU<K, V, E, S> {
     /// # Example
     ///
     /// ```
-    /// use hashicorp_lru::{RawLRU, PutResult};
+    /// use caches::{RawLRU, PutResult};
     /// let mut cache = RawLRU::new(2).unwrap();
     ///
     /// cache.put(1, "a");
@@ -691,7 +691,7 @@ impl<K: Hash + Eq, V, E: OnEvictCallback, S: BuildHasher> RawLRU<K, V, E, S> {
     /// # Example
     ///
     /// ```
-    /// use hashicorp_lru::RawLRU;
+    /// use caches::RawLRU;
     /// let mut cache = RawLRU::new(2).unwrap();
     ///
     /// cache.put(2, "a");
@@ -727,7 +727,7 @@ impl<K: Hash + Eq, V, E: OnEvictCallback, S: BuildHasher> RawLRU<K, V, E, S> {
     /// # Example
     ///
     /// ```
-    /// use hashicorp_lru::RawLRU;
+    /// use caches::RawLRU;
     /// let mut cache = RawLRU::new(2).unwrap();
     ///
     /// cache.put(2, "a");
@@ -758,7 +758,7 @@ impl<K: Hash + Eq, V, E: OnEvictCallback, S: BuildHasher> RawLRU<K, V, E, S> {
     /// # Example
     ///
     /// ```
-    /// use hashicorp_lru::RawLRU;
+    /// use caches::RawLRU;
     /// let mut cache = RawLRU::new(2).unwrap();
     /// assert_eq!(cache.len(), 0);
     ///
@@ -780,7 +780,7 @@ impl<K: Hash + Eq, V, E: OnEvictCallback, S: BuildHasher> RawLRU<K, V, E, S> {
     /// # Example
     ///
     /// ```
-    /// use hashicorp_lru::RawLRU;
+    /// use caches::RawLRU;
     /// let mut cache = RawLRU::new(2).unwrap();
     /// assert!(cache.is_empty());
     ///
@@ -796,7 +796,7 @@ impl<K: Hash + Eq, V, E: OnEvictCallback, S: BuildHasher> RawLRU<K, V, E, S> {
     /// # Example
     ///
     /// ```
-    /// use hashicorp_lru::RawLRU;
+    /// use caches::RawLRU;
     /// let mut cache: RawLRU<isize, &str> = RawLRU::new(2).unwrap();
     /// assert_eq!(cache.cap(), 2);
     /// ```
@@ -810,7 +810,7 @@ impl<K: Hash + Eq, V, E: OnEvictCallback, S: BuildHasher> RawLRU<K, V, E, S> {
     /// # Example
     ///
     /// ```
-    /// use hashicorp_lru::RawLRU;
+    /// use caches::RawLRU;
     /// let mut cache: RawLRU<isize, &str> = RawLRU::new(2).unwrap();
     ///
     /// cache.put(1, "a");
@@ -847,7 +847,7 @@ impl<K: Hash + Eq, V, E: OnEvictCallback, S: BuildHasher> RawLRU<K, V, E, S> {
     /// # Example
     ///
     /// ```
-    /// use hashicorp_lru::RawLRU;
+    /// use caches::RawLRU;
     /// let mut cache: RawLRU<isize, &str> = RawLRU::new(2).unwrap();
     /// assert_eq!(cache.len(), 0);
     ///
@@ -870,7 +870,7 @@ impl<K: Hash + Eq, V, E: OnEvictCallback, S: BuildHasher> RawLRU<K, V, E, S> {
     /// # Examples
     ///
     /// ```
-    /// use hashicorp_lru::RawLRU;
+    /// use caches::RawLRU;
     ///
     /// let mut cache = RawLRU::new(3).unwrap();
     /// cache.put("a", 1);
@@ -891,7 +891,7 @@ impl<K: Hash + Eq, V, E: OnEvictCallback, S: BuildHasher> RawLRU<K, V, E, S> {
     /// # Examples
     ///
     /// ```
-    /// use hashicorp_lru::RawLRU;
+    /// use caches::RawLRU;
     ///
     /// let mut cache = RawLRU::new(3).unwrap();
     /// cache.put("a", 1);
@@ -914,7 +914,7 @@ impl<K: Hash + Eq, V, E: OnEvictCallback, S: BuildHasher> RawLRU<K, V, E, S> {
     /// # Examples
     ///
     /// ```
-    /// use hashicorp_lru::RawLRU;
+    /// use caches::RawLRU;
     ///
     /// let mut cache = RawLRU::new(3).unwrap();
     /// cache.put("a", 1);
@@ -935,7 +935,7 @@ impl<K: Hash + Eq, V, E: OnEvictCallback, S: BuildHasher> RawLRU<K, V, E, S> {
     /// # Examples
     ///
     /// ```
-    /// use hashicorp_lru::RawLRU;
+    /// use caches::RawLRU;
     ///
     /// let mut cache = RawLRU::new(3).unwrap();
     /// cache.put("a", 1);
@@ -958,7 +958,7 @@ impl<K: Hash + Eq, V, E: OnEvictCallback, S: BuildHasher> RawLRU<K, V, E, S> {
     /// # Examples
     ///
     /// ```
-    /// use hashicorp_lru::RawLRU;
+    /// use caches::RawLRU;
     ///
     /// let mut cache = RawLRU::new(3).unwrap();
     /// cache.put("a", 1);
@@ -981,7 +981,7 @@ impl<K: Hash + Eq, V, E: OnEvictCallback, S: BuildHasher> RawLRU<K, V, E, S> {
     /// # Examples
     ///
     /// ```
-    /// use hashicorp_lru::RawLRU;
+    /// use caches::RawLRU;
     ///
     /// let mut cache = RawLRU::new(3).unwrap();
     /// cache.put("a", 1);
@@ -1004,7 +1004,7 @@ impl<K: Hash + Eq, V, E: OnEvictCallback, S: BuildHasher> RawLRU<K, V, E, S> {
     /// # Examples
     ///
     /// ```
-    /// use hashicorp_lru::RawLRU;
+    /// use caches::RawLRU;
     ///
     /// let mut cache = RawLRU::new(3).unwrap();
     /// cache.put("a", 1);
@@ -1030,7 +1030,7 @@ impl<K: Hash + Eq, V, E: OnEvictCallback, S: BuildHasher> RawLRU<K, V, E, S> {
     /// # Examples
     ///
     /// ```
-    /// use hashicorp_lru::RawLRU;
+    /// use caches::RawLRU;
     ///
     /// let mut cache = RawLRU::new(3).unwrap();
     /// cache.put("a", 1);
@@ -1056,7 +1056,7 @@ impl<K: Hash + Eq, V, E: OnEvictCallback, S: BuildHasher> RawLRU<K, V, E, S> {
     /// # Examples
     ///
     /// ```
-    /// use hashicorp_lru::RawLRU;
+    /// use caches::RawLRU;
     ///
     /// struct HddBlock {
     ///     dirty: bool,
@@ -1091,7 +1091,7 @@ impl<K: Hash + Eq, V, E: OnEvictCallback, S: BuildHasher> RawLRU<K, V, E, S> {
     /// # Examples
     ///
     /// ```
-    /// use hashicorp_lru::RawLRU;
+    /// use caches::RawLRU;
     ///
     /// struct HddBlock {
     ///     dirty: bool,

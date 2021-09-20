@@ -24,7 +24,7 @@ impl Default for AdaptiveCacheBuilder {
     ///
     /// # Example
     /// ```rust
-    /// use hashicorp_lru::{AdaptiveCacheBuilder, AdaptiveCache};
+    /// use caches::{AdaptiveCacheBuilder, AdaptiveCache};
     /// let mut cache: AdaptiveCache<u64, u64> = AdaptiveCacheBuilder::default()
     ///     .set_size(5)
     ///     .finalize()
@@ -51,7 +51,7 @@ impl AdaptiveCacheBuilder {
     ///
     /// use rustc_hash::FxHasher;
     /// use std::hash::BuildHasherDefault;
-    /// use hashicorp_lru::AdaptiveCacheBuilder;
+    /// use caches::AdaptiveCacheBuilder;
     ///
     /// let mut cache = AdaptiveCacheBuilder::new(3)
     ///     .set_recent_hasher(BuildHasherDefault::<FxHasher>::default())
@@ -181,7 +181,7 @@ impl<RH: BuildHasher, REH: BuildHasher, FH: BuildHasher, FEH: BuildHasher>
 /// 
 /// ```rust
 ///
-/// use hashicorp_lru::AdaptiveCache;
+/// use caches::AdaptiveCache;
 /// 
 /// let mut cache = AdaptiveCache::new(4).unwrap();
 /// 
@@ -292,7 +292,7 @@ impl<K: Hash + Eq, V> AdaptiveCache<K, V> {
     ///
     /// # Example
     /// ```rust
-    /// use hashicorp_lru::{AdaptiveCacheBuilder, AdaptiveCache};
+    /// use caches::{AdaptiveCacheBuilder, AdaptiveCache};
     /// use rustc_hash::FxHasher;
     /// use std::hash::BuildHasherDefault;
     ///
@@ -321,7 +321,7 @@ impl<K: Hash + Eq, V, RH: BuildHasher, REH: BuildHasher, FH: BuildHasher, FEH: B
     ///
     /// # Example
     /// ```rust
-    /// use hashicorp_lru::{AdaptiveCacheBuilder, AdaptiveCache};
+    /// use caches::{AdaptiveCacheBuilder, AdaptiveCache};
     /// use rustc_hash::FxHasher;
     /// use std::hash::BuildHasherDefault;
     ///
@@ -469,7 +469,7 @@ impl<K: Hash + Eq, V, RH: BuildHasher, REH: BuildHasher, FH: BuildHasher, FEH: B
     /// # Example
     ///
     /// ```
-    /// use hashicorp_lru::AdaptiveCache;
+    /// use caches::AdaptiveCache;
     /// let mut cache = AdaptiveCache::new(2).unwrap();
     ///
     /// cache.put("apple", 8);
@@ -504,7 +504,7 @@ impl<K: Hash + Eq, V, RH: BuildHasher, REH: BuildHasher, FH: BuildHasher, FEH: B
     /// # Example
     ///
     /// ```
-    /// use hashicorp_lru::AdaptiveCache;
+    /// use caches::AdaptiveCache;
     /// let mut cache = AdaptiveCache::new(2).unwrap();
     ///
     /// cache.put("apple", 8);
@@ -542,7 +542,7 @@ impl<K: Hash + Eq, V, RH: BuildHasher, REH: BuildHasher, FH: BuildHasher, FEH: B
     /// # Example
     ///
     /// ```
-    /// use hashicorp_lru::AdaptiveCache;
+    /// use caches::AdaptiveCache;
     /// let mut cache = AdaptiveCache::new(2).unwrap();
     ///
     /// cache.put(1, "a");
@@ -566,7 +566,7 @@ impl<K: Hash + Eq, V, RH: BuildHasher, REH: BuildHasher, FH: BuildHasher, FEH: B
     /// # Example
     ///
     /// ```
-    /// use hashicorp_lru::AdaptiveCache;
+    /// use caches::AdaptiveCache;
     /// let mut cache = AdaptiveCache::new(2).unwrap();
     ///
     /// cache.put(1, "a");
@@ -591,7 +591,7 @@ impl<K: Hash + Eq, V, RH: BuildHasher, REH: BuildHasher, FH: BuildHasher, FEH: B
     /// # Example
     ///
     /// ```
-    /// use hashicorp_lru::AdaptiveCache;
+    /// use caches::AdaptiveCache;
     /// let mut cache = AdaptiveCache::new(2).unwrap();
     ///
     /// cache.put(1, "a");
@@ -616,7 +616,7 @@ impl<K: Hash + Eq, V, RH: BuildHasher, REH: BuildHasher, FH: BuildHasher, FEH: B
     /// # Example
     ///
     /// ```
-    /// use hashicorp_lru::AdaptiveCache;
+    /// use caches::AdaptiveCache;
     /// let mut cache = AdaptiveCache::new(2).unwrap();
     ///
     /// cache.put(2, "a");
@@ -643,7 +643,7 @@ impl<K: Hash + Eq, V, RH: BuildHasher, REH: BuildHasher, FH: BuildHasher, FEH: B
     /// # Example
     ///
     /// ```
-    /// use hashicorp_lru::AdaptiveCache;
+    /// use caches::AdaptiveCache;
     /// let mut cache: AdaptiveCache<isize, &str> = AdaptiveCache::new(2).unwrap();
     /// assert_eq!(cache.len(), 0);
     ///
@@ -673,7 +673,7 @@ impl<K: Hash + Eq, V, RH: BuildHasher, REH: BuildHasher, FH: BuildHasher, FEH: B
     /// # Example
     ///
     /// ```
-    /// use hashicorp_lru::AdaptiveCache;
+    /// use caches::AdaptiveCache;
     /// let mut cache = AdaptiveCache::new(2).unwrap();
     /// assert_eq!(cache.len(), 0);
     ///
@@ -715,7 +715,7 @@ impl<K: Hash + Eq, V, RH: BuildHasher, REH: BuildHasher, FH: BuildHasher, FEH: B
     /// # Example
     ///
     /// ```
-    /// use hashicorp_lru::AdaptiveCache;
+    /// use caches::AdaptiveCache;
     /// let mut cache: AdaptiveCache<isize, &str> = AdaptiveCache::new(2).unwrap();
     /// assert_eq!(cache.cap(), 2);
     /// ```
@@ -729,7 +729,7 @@ impl<K: Hash + Eq, V, RH: BuildHasher, REH: BuildHasher, FH: BuildHasher, FEH: B
     /// # Examples
     ///
     /// ```
-    /// use hashicorp_lru::AdaptiveCache;
+    /// use caches::AdaptiveCache;
     ///
     /// let mut cache = AdaptiveCache::new(3).unwrap();
     /// cache.put("a", 1);
@@ -750,7 +750,7 @@ impl<K: Hash + Eq, V, RH: BuildHasher, REH: BuildHasher, FH: BuildHasher, FEH: B
     /// # Examples
     ///
     /// ```
-    /// use hashicorp_lru::AdaptiveCache;
+    /// use caches::AdaptiveCache;
     ///
     /// let mut cache = AdaptiveCache::new(3).unwrap();
     /// cache.put("a", 1);
@@ -771,7 +771,7 @@ impl<K: Hash + Eq, V, RH: BuildHasher, REH: BuildHasher, FH: BuildHasher, FEH: B
     /// # Examples
     ///
     /// ```
-    /// use hashicorp_lru::AdaptiveCache;
+    /// use caches::AdaptiveCache;
     ///
     /// let mut cache = AdaptiveCache::new(3).unwrap();
     /// cache.put("a", 1);
@@ -792,7 +792,7 @@ impl<K: Hash + Eq, V, RH: BuildHasher, REH: BuildHasher, FH: BuildHasher, FEH: B
     /// # Examples
     ///
     /// ```
-    /// use hashicorp_lru::AdaptiveCache;
+    /// use caches::AdaptiveCache;
     ///
     /// let mut cache = AdaptiveCache::new(3).unwrap();
     /// cache.put("a", 1);
@@ -813,7 +813,7 @@ impl<K: Hash + Eq, V, RH: BuildHasher, REH: BuildHasher, FH: BuildHasher, FEH: B
     /// # Examples
     ///
     /// ```
-    /// use hashicorp_lru::AdaptiveCache;
+    /// use caches::AdaptiveCache;
     ///
     /// let mut cache = AdaptiveCache::new(3).unwrap();
     /// cache.put("a", 1);
@@ -834,7 +834,7 @@ impl<K: Hash + Eq, V, RH: BuildHasher, REH: BuildHasher, FH: BuildHasher, FEH: B
     /// # Examples
     ///
     /// ```
-    /// use hashicorp_lru::AdaptiveCache;
+    /// use caches::AdaptiveCache;
     ///
     /// let mut cache = AdaptiveCache::new(3).unwrap();
     /// cache.put("a", 1);
@@ -855,7 +855,7 @@ impl<K: Hash + Eq, V, RH: BuildHasher, REH: BuildHasher, FH: BuildHasher, FEH: B
     /// # Examples
     ///
     /// ```
-    /// use hashicorp_lru::AdaptiveCache;
+    /// use caches::AdaptiveCache;
     ///
     /// let mut cache = AdaptiveCache::new(3).unwrap();
     /// cache.put("a", 1);
@@ -876,7 +876,7 @@ impl<K: Hash + Eq, V, RH: BuildHasher, REH: BuildHasher, FH: BuildHasher, FEH: B
     /// # Examples
     ///
     /// ```
-    /// use hashicorp_lru::AdaptiveCache;
+    /// use caches::AdaptiveCache;
     ///
     /// let mut cache = AdaptiveCache::new(3).unwrap();
     /// cache.put("a", 1);
@@ -897,7 +897,7 @@ impl<K: Hash + Eq, V, RH: BuildHasher, REH: BuildHasher, FH: BuildHasher, FEH: B
     /// # Examples
     ///
     /// ```
-    /// use hashicorp_lru::AdaptiveCache;
+    /// use caches::AdaptiveCache;
     ///
     /// struct HddBlock {
     ///     idx: u64,
@@ -933,7 +933,7 @@ impl<K: Hash + Eq, V, RH: BuildHasher, REH: BuildHasher, FH: BuildHasher, FEH: B
     /// # Examples
     ///
     /// ```
-    /// use hashicorp_lru::AdaptiveCache;
+    /// use caches::AdaptiveCache;
     ///
     /// struct HddBlock {
     ///     idx: u64,
@@ -970,7 +970,7 @@ impl<K: Hash + Eq, V, RH: BuildHasher, REH: BuildHasher, FH: BuildHasher, FEH: B
     /// # Examples
     ///
     /// ```
-    /// use hashicorp_lru::AdaptiveCache;
+    /// use caches::AdaptiveCache;
     ///
     /// let mut cache = AdaptiveCache::new(3).unwrap();
     /// cache.put("a", 1);
@@ -991,7 +991,7 @@ impl<K: Hash + Eq, V, RH: BuildHasher, REH: BuildHasher, FH: BuildHasher, FEH: B
     /// # Examples
     ///
     /// ```
-    /// use hashicorp_lru::AdaptiveCache;
+    /// use caches::AdaptiveCache;
     ///
     /// let mut cache = AdaptiveCache::new(3).unwrap();
     /// cache.put("a", 1);
@@ -1012,7 +1012,7 @@ impl<K: Hash + Eq, V, RH: BuildHasher, REH: BuildHasher, FH: BuildHasher, FEH: B
     /// # Examples
     ///
     /// ```
-    /// use hashicorp_lru::AdaptiveCache;
+    /// use caches::AdaptiveCache;
     ///
     /// let mut cache = AdaptiveCache::new(3).unwrap();
     /// cache.put("a", 1);
@@ -1033,7 +1033,7 @@ impl<K: Hash + Eq, V, RH: BuildHasher, REH: BuildHasher, FH: BuildHasher, FEH: B
     /// # Examples
     ///
     /// ```
-    /// use hashicorp_lru::AdaptiveCache;
+    /// use caches::AdaptiveCache;
     ///
     /// let mut cache = AdaptiveCache::new(3).unwrap();
     /// cache.put("a", 1);
@@ -1054,7 +1054,7 @@ impl<K: Hash + Eq, V, RH: BuildHasher, REH: BuildHasher, FH: BuildHasher, FEH: B
     /// # Examples
     ///
     /// ```
-    /// use hashicorp_lru::AdaptiveCache;
+    /// use caches::AdaptiveCache;
     ///
     /// let mut cache = AdaptiveCache::new(3).unwrap();
     /// cache.put("a", 1);
@@ -1075,7 +1075,7 @@ impl<K: Hash + Eq, V, RH: BuildHasher, REH: BuildHasher, FH: BuildHasher, FEH: B
     /// # Examples
     ///
     /// ```
-    /// use hashicorp_lru::AdaptiveCache;
+    /// use caches::AdaptiveCache;
     ///
     /// let mut cache = AdaptiveCache::new(3).unwrap();
     /// cache.put("a", 1);
@@ -1096,7 +1096,7 @@ impl<K: Hash + Eq, V, RH: BuildHasher, REH: BuildHasher, FH: BuildHasher, FEH: B
     /// # Examples
     ///
     /// ```
-    /// use hashicorp_lru::AdaptiveCache;
+    /// use caches::AdaptiveCache;
     ///
     /// let mut cache = AdaptiveCache::new(3).unwrap();
     /// cache.put("a", 1);
@@ -1117,7 +1117,7 @@ impl<K: Hash + Eq, V, RH: BuildHasher, REH: BuildHasher, FH: BuildHasher, FEH: B
     /// # Examples
     ///
     /// ```
-    /// use hashicorp_lru::AdaptiveCache;
+    /// use caches::AdaptiveCache;
     ///
     /// let mut cache = AdaptiveCache::new(3).unwrap();
     /// cache.put("a", 1);
@@ -1138,7 +1138,7 @@ impl<K: Hash + Eq, V, RH: BuildHasher, REH: BuildHasher, FH: BuildHasher, FEH: B
     /// # Examples
     ///
     /// ```
-    /// use hashicorp_lru::AdaptiveCache;
+    /// use caches::AdaptiveCache;
     ///
     /// struct HddBlock {
     ///     idx: u64,
@@ -1179,7 +1179,7 @@ impl<K: Hash + Eq, V, RH: BuildHasher, REH: BuildHasher, FH: BuildHasher, FEH: B
     /// # Examples
     ///
     /// ```
-    /// use hashicorp_lru::AdaptiveCache;
+    /// use caches::AdaptiveCache;
     ///
     /// struct HddBlock {
     ///     idx: u64,
@@ -1221,7 +1221,7 @@ impl<K: Hash + Eq, V, RH: BuildHasher, REH: BuildHasher, FH: BuildHasher, FEH: B
     /// # Examples
     ///
     /// ```
-    /// use hashicorp_lru::AdaptiveCache;
+    /// use caches::AdaptiveCache;
     ///
     /// let mut cache = AdaptiveCache::new(3).unwrap();
     /// cache.put("a", 1);
@@ -1242,7 +1242,7 @@ impl<K: Hash + Eq, V, RH: BuildHasher, REH: BuildHasher, FH: BuildHasher, FEH: B
     /// # Examples
     ///
     /// ```
-    /// use hashicorp_lru::AdaptiveCache;
+    /// use caches::AdaptiveCache;
     ///
     /// let mut cache = AdaptiveCache::new(3).unwrap();
     /// cache.put("a", 1);
@@ -1263,7 +1263,7 @@ impl<K: Hash + Eq, V, RH: BuildHasher, REH: BuildHasher, FH: BuildHasher, FEH: B
     /// # Examples
     ///
     /// ```
-    /// use hashicorp_lru::AdaptiveCache;
+    /// use caches::AdaptiveCache;
     ///
     /// let mut cache = AdaptiveCache::new(3).unwrap();
     /// cache.put("a", 1);
@@ -1284,7 +1284,7 @@ impl<K: Hash + Eq, V, RH: BuildHasher, REH: BuildHasher, FH: BuildHasher, FEH: B
     /// # Examples
     ///
     /// ```
-    /// use hashicorp_lru::AdaptiveCache;
+    /// use caches::AdaptiveCache;
     ///
     /// let mut cache = AdaptiveCache::new(3).unwrap();
     /// cache.put("a", 1);
@@ -1305,7 +1305,7 @@ impl<K: Hash + Eq, V, RH: BuildHasher, REH: BuildHasher, FH: BuildHasher, FEH: B
     /// # Examples
     ///
     /// ```
-    /// use hashicorp_lru::AdaptiveCache;
+    /// use caches::AdaptiveCache;
     ///
     /// let mut cache = AdaptiveCache::new(3).unwrap();
     /// cache.put("a", 1);
@@ -1326,7 +1326,7 @@ impl<K: Hash + Eq, V, RH: BuildHasher, REH: BuildHasher, FH: BuildHasher, FEH: B
     /// # Examples
     ///
     /// ```
-    /// use hashicorp_lru::AdaptiveCache;
+    /// use caches::AdaptiveCache;
     ///
     /// let mut cache = AdaptiveCache::new(3).unwrap();
     /// cache.put("a", 1);
@@ -1347,7 +1347,7 @@ impl<K: Hash + Eq, V, RH: BuildHasher, REH: BuildHasher, FH: BuildHasher, FEH: B
     /// # Examples
     ///
     /// ```
-    /// use hashicorp_lru::AdaptiveCache;
+    /// use caches::AdaptiveCache;
     ///
     /// let mut cache = AdaptiveCache::new(3).unwrap();
     /// cache.put("a", 1);
@@ -1368,7 +1368,7 @@ impl<K: Hash + Eq, V, RH: BuildHasher, REH: BuildHasher, FH: BuildHasher, FEH: B
     /// # Examples
     ///
     /// ```
-    /// use hashicorp_lru::AdaptiveCache;
+    /// use caches::AdaptiveCache;
     ///
     /// let mut cache = AdaptiveCache::new(3).unwrap();
     /// cache.put("a", 1);
@@ -1389,7 +1389,7 @@ impl<K: Hash + Eq, V, RH: BuildHasher, REH: BuildHasher, FH: BuildHasher, FEH: B
     /// # Examples
     ///
     /// ```
-    /// use hashicorp_lru::AdaptiveCache;
+    /// use caches::AdaptiveCache;
     ///
     /// struct HddBlock {
     ///     idx: u64,
@@ -1430,7 +1430,7 @@ impl<K: Hash + Eq, V, RH: BuildHasher, REH: BuildHasher, FH: BuildHasher, FEH: B
     /// # Examples
     ///
     /// ```
-    /// use hashicorp_lru::AdaptiveCache;
+    /// use caches::AdaptiveCache;
     ///
     /// struct HddBlock {
     ///     idx: u64,
@@ -1472,7 +1472,7 @@ impl<K: Hash + Eq, V, RH: BuildHasher, REH: BuildHasher, FH: BuildHasher, FEH: B
     /// # Examples
     ///
     /// ```
-    /// use hashicorp_lru::AdaptiveCache;
+    /// use caches::AdaptiveCache;
     ///
     /// let mut cache = AdaptiveCache::new(3).unwrap();
     /// cache.put("a", 1);
@@ -1493,7 +1493,7 @@ impl<K: Hash + Eq, V, RH: BuildHasher, REH: BuildHasher, FH: BuildHasher, FEH: B
     /// # Examples
     ///
     /// ```
-    /// use hashicorp_lru::AdaptiveCache;
+    /// use caches::AdaptiveCache;
     ///
     /// let mut cache = AdaptiveCache::new(3).unwrap();
     /// cache.put("a", 1);
@@ -1514,7 +1514,7 @@ impl<K: Hash + Eq, V, RH: BuildHasher, REH: BuildHasher, FH: BuildHasher, FEH: B
     /// # Examples
     ///
     /// ```
-    /// use hashicorp_lru::AdaptiveCache;
+    /// use caches::AdaptiveCache;
     ///
     /// let mut cache = AdaptiveCache::new(3).unwrap();
     /// cache.put("a", 1);
@@ -1535,7 +1535,7 @@ impl<K: Hash + Eq, V, RH: BuildHasher, REH: BuildHasher, FH: BuildHasher, FEH: B
     /// # Examples
     ///
     /// ```
-    /// use hashicorp_lru::AdaptiveCache;
+    /// use caches::AdaptiveCache;
     ///
     /// let mut cache = AdaptiveCache::new(3).unwrap();
     /// cache.put("a", 1);
@@ -1556,7 +1556,7 @@ impl<K: Hash + Eq, V, RH: BuildHasher, REH: BuildHasher, FH: BuildHasher, FEH: B
     /// # Examples
     ///
     /// ```
-    /// use hashicorp_lru::AdaptiveCache;
+    /// use caches::AdaptiveCache;
     ///
     /// let mut cache = AdaptiveCache::new(3).unwrap();
     /// cache.put("a", 1);
@@ -1577,7 +1577,7 @@ impl<K: Hash + Eq, V, RH: BuildHasher, REH: BuildHasher, FH: BuildHasher, FEH: B
     /// # Examples
     ///
     /// ```
-    /// use hashicorp_lru::AdaptiveCache;
+    /// use caches::AdaptiveCache;
     ///
     /// let mut cache = AdaptiveCache::new(3).unwrap();
     /// cache.put("a", 1);
@@ -1598,7 +1598,7 @@ impl<K: Hash + Eq, V, RH: BuildHasher, REH: BuildHasher, FH: BuildHasher, FEH: B
     /// # Examples
     ///
     /// ```
-    /// use hashicorp_lru::AdaptiveCache;
+    /// use caches::AdaptiveCache;
     ///
     /// let mut cache = AdaptiveCache::new(3).unwrap();
     /// cache.put("a", 1);
@@ -1619,7 +1619,7 @@ impl<K: Hash + Eq, V, RH: BuildHasher, REH: BuildHasher, FH: BuildHasher, FEH: B
     /// # Examples
     ///
     /// ```
-    /// use hashicorp_lru::AdaptiveCache;
+    /// use caches::AdaptiveCache;
     ///
     /// let mut cache = AdaptiveCache::new(3).unwrap();
     /// cache.put("a", 1);
@@ -1640,7 +1640,7 @@ impl<K: Hash + Eq, V, RH: BuildHasher, REH: BuildHasher, FH: BuildHasher, FEH: B
     /// # Examples
     ///
     /// ```
-    /// use hashicorp_lru::AdaptiveCache;
+    /// use caches::AdaptiveCache;
     ///
     /// struct HddBlock {
     ///     idx: u64,
@@ -1681,7 +1681,7 @@ impl<K: Hash + Eq, V, RH: BuildHasher, REH: BuildHasher, FH: BuildHasher, FEH: B
     /// # Examples
     ///
     /// ```
-    /// use hashicorp_lru::AdaptiveCache;
+    /// use caches::AdaptiveCache;
     ///
     /// struct HddBlock {
     ///     idx: u64,

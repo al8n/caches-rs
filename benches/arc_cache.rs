@@ -3,7 +3,7 @@ use fnv::FnvBuildHasher;
 use rand::{thread_rng, Rng};
 use rustc_hash::FxHasher;
 use std::hash::BuildHasherDefault;
-use hashicorp_lru::{AdaptiveCache, AdaptiveCacheBuilder};
+use caches::{AdaptiveCache, AdaptiveCacheBuilder};
 
 fn bench_arc_cache_default_hasher(c: &mut Criterion) {
     c.bench_function("Test AdaptiveCache freq default hasher", move |b| {

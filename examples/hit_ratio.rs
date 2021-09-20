@@ -1,5 +1,5 @@
 use rand::{thread_rng, Rng};
-use hashicorp_lru::{AdaptiveCache, TwoQueueCache, LRUCache};
+use caches::{AdaptiveCache, TwoQueueCache, LRUCache};
 
 
 fn lru_cache(cases: Vec<(usize, Vec<u64>)>) -> Vec<(usize, f64)> {

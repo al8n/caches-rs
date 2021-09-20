@@ -39,7 +39,7 @@ impl Default for TwoQueueCacheBuilder {
     ///
     /// # Example
     /// ```rust
-    /// use hashicorp_lru::{TwoQueueCacheBuilder, TwoQueueCache};
+    /// use caches::{TwoQueueCacheBuilder, TwoQueueCache};
     /// let mut cache: TwoQueueCache<u64, u64> = TwoQueueCacheBuilder::default()
     ///     .set_size(5)
     ///     .finalize()
@@ -64,7 +64,7 @@ impl TwoQueueCacheBuilder {
     ///
     /// # Example
     /// ```rust
-    /// use hashicorp_lru::{TwoQueueCacheBuilder, TwoQueueCache};
+    /// use caches::{TwoQueueCacheBuilder, TwoQueueCache};
     /// use rustc_hash::FxHasher;
     /// use std::hash::BuildHasherDefault;
     ///
@@ -222,7 +222,7 @@ impl<RH: BuildHasher, FH: BuildHasher, GH: BuildHasher> TwoQueueCacheBuilder<RH,
 ///
 /// ```rust
 ///
-/// use hashicorp_lru::{TwoQueueCache, PutResult};
+/// use caches::{TwoQueueCache, PutResult};
 ///
 /// let mut cache = TwoQueueCache::new(4).unwrap();
 ///
@@ -287,7 +287,7 @@ impl<K: Hash + Eq, V> TwoQueueCache<K, V> {
     ///
     /// # Example
     /// ```rust
-    /// use hashicorp_lru::{TwoQueueCacheBuilder, TwoQueueCache};
+    /// use caches::{TwoQueueCacheBuilder, TwoQueueCache};
     /// use rustc_hash::FxHasher;
     /// use std::hash::BuildHasherDefault;
     ///
@@ -314,7 +314,7 @@ impl<K: Hash + Eq, V> TwoQueueCache<K, V> {
     /// # Example
     ///
     /// ```rust
-    /// use hashicorp_lru::TwoQueueCache;
+    /// use caches::TwoQueueCache;
     ///
     /// let mut cache: TwoQueueCache<u64, u64>= TwoQueueCache::with_recent_ratio(5, 0.3).unwrap();
     /// ```
@@ -327,7 +327,7 @@ impl<K: Hash + Eq, V> TwoQueueCache<K, V> {
     /// # Example
     ///
     /// ```rust
-    /// use hashicorp_lru::TwoQueueCache;
+    /// use caches::TwoQueueCache;
     ///
     /// let mut cache: TwoQueueCache<u64, u64>= TwoQueueCache::with_ghost_ratio(5, 0.6).unwrap();
     /// ```
@@ -340,7 +340,7 @@ impl<K: Hash + Eq, V> TwoQueueCache<K, V> {
     /// # Example
     ///
     /// ```rust
-    /// use hashicorp_lru::TwoQueueCache;
+    /// use caches::TwoQueueCache;
     ///
     /// let mut cache: TwoQueueCache<u64, u64>= TwoQueueCache::with_2q_parameters(5, 0.3, 0.6).unwrap();
     /// ```
@@ -384,7 +384,7 @@ impl<K: Hash + Eq, V, RH: BuildHasher, FH: BuildHasher, GH: BuildHasher>
     ///
     /// # Example
     /// ```rust
-    /// use hashicorp_lru::{TwoQueueCacheBuilder, TwoQueueCache};
+    /// use caches::{TwoQueueCacheBuilder, TwoQueueCache};
     /// use rustc_hash::FxHasher;
     /// use std::hash::BuildHasherDefault;
     ///
@@ -414,7 +414,7 @@ impl<K: Hash + Eq, V, RH: BuildHasher, FH: BuildHasher, GH: BuildHasher>
     ///
     /// # Example
     /// ```rust
-    /// use hashicorp_lru::{TwoQueueCache, PutResult};
+    /// use caches::{TwoQueueCache, PutResult};
     ///
     /// let mut cache = TwoQueueCache::new(4).unwrap();
     /// // Add 1,2,3,4,5 -> Evict 1
@@ -565,7 +565,7 @@ impl<K: Hash + Eq, V, RH: BuildHasher, FH: BuildHasher, GH: BuildHasher>
     /// # Example
     ///
     /// ```
-    /// use hashicorp_lru::TwoQueueCache;
+    /// use caches::TwoQueueCache;
     /// let mut cache = TwoQueueCache::new(2).unwrap();
     ///
     /// cache.put("apple", 8);
@@ -598,7 +598,7 @@ impl<K: Hash + Eq, V, RH: BuildHasher, FH: BuildHasher, GH: BuildHasher>
     /// # Example
     ///
     /// ```
-    /// use hashicorp_lru::TwoQueueCache;
+    /// use caches::TwoQueueCache;
     /// let mut cache = TwoQueueCache::new(2).unwrap();
     ///
     /// cache.put("apple", 8);
@@ -634,7 +634,7 @@ impl<K: Hash + Eq, V, RH: BuildHasher, FH: BuildHasher, GH: BuildHasher>
     /// # Example
     ///
     /// ```
-    /// use hashicorp_lru::TwoQueueCache;
+    /// use caches::TwoQueueCache;
     /// let mut cache = TwoQueueCache::new(2).unwrap();
     ///
     /// cache.put(1, "a");
@@ -658,7 +658,7 @@ impl<K: Hash + Eq, V, RH: BuildHasher, FH: BuildHasher, GH: BuildHasher>
     /// # Example
     ///
     /// ```
-    /// use hashicorp_lru::TwoQueueCache;
+    /// use caches::TwoQueueCache;
     /// let mut cache = TwoQueueCache::new(2).unwrap();
     ///
     /// cache.put(1, "a");
@@ -683,7 +683,7 @@ impl<K: Hash + Eq, V, RH: BuildHasher, FH: BuildHasher, GH: BuildHasher>
     /// # Example
     ///
     /// ```
-    /// use hashicorp_lru::TwoQueueCache;
+    /// use caches::TwoQueueCache;
     /// let mut cache = TwoQueueCache::new(2).unwrap();
     ///
     /// cache.put(2, "a");
@@ -710,7 +710,7 @@ impl<K: Hash + Eq, V, RH: BuildHasher, FH: BuildHasher, GH: BuildHasher>
     /// # Example
     ///
     /// ```
-    /// use hashicorp_lru::TwoQueueCache;
+    /// use caches::TwoQueueCache;
     /// let mut cache = TwoQueueCache::new(2).unwrap();
     ///
     /// cache.put(1, "a");
@@ -734,7 +734,7 @@ impl<K: Hash + Eq, V, RH: BuildHasher, FH: BuildHasher, GH: BuildHasher>
     /// # Example
     ///
     /// ```
-    /// use hashicorp_lru::TwoQueueCache;
+    /// use caches::TwoQueueCache;
     /// let mut cache: TwoQueueCache<isize, &str> = TwoQueueCache::new(2).unwrap();
     /// assert_eq!(cache.len(), 0);
     ///
@@ -759,7 +759,7 @@ impl<K: Hash + Eq, V, RH: BuildHasher, FH: BuildHasher, GH: BuildHasher>
     /// # Example
     ///
     /// ```
-    /// use hashicorp_lru::TwoQueueCache;
+    /// use caches::TwoQueueCache;
     /// let mut cache = TwoQueueCache::new(2).unwrap();
     /// assert_eq!(cache.len(), 0);
     ///
@@ -797,7 +797,7 @@ impl<K: Hash + Eq, V, RH: BuildHasher, FH: BuildHasher, GH: BuildHasher>
     /// # Example
     ///
     /// ```
-    /// use hashicorp_lru::TwoQueueCache;
+    /// use caches::TwoQueueCache;
     /// let mut cache: TwoQueueCache<isize, &str> = TwoQueueCache::new(2).unwrap();
     /// assert_eq!(cache.cap(), 2);
     /// ```
@@ -811,7 +811,7 @@ impl<K: Hash + Eq, V, RH: BuildHasher, FH: BuildHasher, GH: BuildHasher>
     /// # Examples
     ///
     /// ```
-    /// use hashicorp_lru::TwoQueueCache;
+    /// use caches::TwoQueueCache;
     ///
     /// let mut cache = TwoQueueCache::new(3).unwrap();
     /// cache.put("a", 1);
@@ -832,7 +832,7 @@ impl<K: Hash + Eq, V, RH: BuildHasher, FH: BuildHasher, GH: BuildHasher>
     /// # Examples
     ///
     /// ```
-    /// use hashicorp_lru::TwoQueueCache;
+    /// use caches::TwoQueueCache;
     ///
     /// let mut cache = TwoQueueCache::new(3).unwrap();
     /// cache.put("a", 1);
@@ -853,7 +853,7 @@ impl<K: Hash + Eq, V, RH: BuildHasher, FH: BuildHasher, GH: BuildHasher>
     /// # Examples
     ///
     /// ```
-    /// use hashicorp_lru::TwoQueueCache;
+    /// use caches::TwoQueueCache;
     ///
     /// let mut cache = TwoQueueCache::new(3).unwrap();
     /// cache.put("a", 1);
@@ -874,7 +874,7 @@ impl<K: Hash + Eq, V, RH: BuildHasher, FH: BuildHasher, GH: BuildHasher>
     /// # Examples
     ///
     /// ```
-    /// use hashicorp_lru::TwoQueueCache;
+    /// use caches::TwoQueueCache;
     ///
     /// let mut cache = TwoQueueCache::new(3).unwrap();
     /// cache.put("a", 1);
@@ -895,7 +895,7 @@ impl<K: Hash + Eq, V, RH: BuildHasher, FH: BuildHasher, GH: BuildHasher>
     /// # Examples
     ///
     /// ```
-    /// use hashicorp_lru::TwoQueueCache;
+    /// use caches::TwoQueueCache;
     ///
     /// let mut cache = TwoQueueCache::new(3).unwrap();
     /// cache.put("a", 1);
@@ -916,7 +916,7 @@ impl<K: Hash + Eq, V, RH: BuildHasher, FH: BuildHasher, GH: BuildHasher>
     /// # Examples
     ///
     /// ```
-    /// use hashicorp_lru::TwoQueueCache;
+    /// use caches::TwoQueueCache;
     ///
     /// let mut cache = TwoQueueCache::new(3).unwrap();
     /// cache.put("a", 1);
@@ -937,7 +937,7 @@ impl<K: Hash + Eq, V, RH: BuildHasher, FH: BuildHasher, GH: BuildHasher>
     /// # Examples
     ///
     /// ```
-    /// use hashicorp_lru::TwoQueueCache;
+    /// use caches::TwoQueueCache;
     ///
     /// let mut cache = TwoQueueCache::new(3).unwrap();
     /// cache.put("a", 1);
@@ -958,7 +958,7 @@ impl<K: Hash + Eq, V, RH: BuildHasher, FH: BuildHasher, GH: BuildHasher>
     /// # Examples
     ///
     /// ```
-    /// use hashicorp_lru::TwoQueueCache;
+    /// use caches::TwoQueueCache;
     ///
     /// let mut cache = TwoQueueCache::new(3).unwrap();
     /// cache.put("a", 1);
@@ -979,7 +979,7 @@ impl<K: Hash + Eq, V, RH: BuildHasher, FH: BuildHasher, GH: BuildHasher>
     /// # Examples
     ///
     /// ```
-    /// use hashicorp_lru::TwoQueueCache;
+    /// use caches::TwoQueueCache;
     ///
     /// struct HddBlock {
     ///     idx: u64,
@@ -1015,7 +1015,7 @@ impl<K: Hash + Eq, V, RH: BuildHasher, FH: BuildHasher, GH: BuildHasher>
     /// # Examples
     ///
     /// ```
-    /// use hashicorp_lru::TwoQueueCache;
+    /// use caches::TwoQueueCache;
     ///
     /// struct HddBlock {
     ///     idx: u64,
@@ -1057,7 +1057,7 @@ impl<K: Hash + Eq, V, RH: BuildHasher, FH: BuildHasher, GH: BuildHasher>
     /// # Examples
     ///
     /// ```
-    /// use hashicorp_lru::TwoQueueCache;
+    /// use caches::TwoQueueCache;
     ///
     /// let mut cache = TwoQueueCache::new(3).unwrap();
     /// cache.put("a", 1);
@@ -1078,7 +1078,7 @@ impl<K: Hash + Eq, V, RH: BuildHasher, FH: BuildHasher, GH: BuildHasher>
     /// # Examples
     ///
     /// ```
-    /// use hashicorp_lru::TwoQueueCache;
+    /// use caches::TwoQueueCache;
     ///
     /// let mut cache = TwoQueueCache::new(3).unwrap();
     /// cache.put("a", 1);
@@ -1099,7 +1099,7 @@ impl<K: Hash + Eq, V, RH: BuildHasher, FH: BuildHasher, GH: BuildHasher>
     /// # Examples
     ///
     /// ```
-    /// use hashicorp_lru::TwoQueueCache;
+    /// use caches::TwoQueueCache;
     ///
     /// let mut cache = TwoQueueCache::new(3).unwrap();
     /// cache.put("a", 1);
@@ -1120,7 +1120,7 @@ impl<K: Hash + Eq, V, RH: BuildHasher, FH: BuildHasher, GH: BuildHasher>
     /// # Examples
     ///
     /// ```
-    /// use hashicorp_lru::TwoQueueCache;
+    /// use caches::TwoQueueCache;
     ///
     /// let mut cache = TwoQueueCache::new(3).unwrap();
     /// cache.put("a", 1);
@@ -1141,7 +1141,7 @@ impl<K: Hash + Eq, V, RH: BuildHasher, FH: BuildHasher, GH: BuildHasher>
     /// # Examples
     ///
     /// ```
-    /// use hashicorp_lru::TwoQueueCache;
+    /// use caches::TwoQueueCache;
     ///
     /// let mut cache = TwoQueueCache::new(3).unwrap();
     /// cache.put("a", 1);
@@ -1162,7 +1162,7 @@ impl<K: Hash + Eq, V, RH: BuildHasher, FH: BuildHasher, GH: BuildHasher>
     /// # Examples
     ///
     /// ```
-    /// use hashicorp_lru::TwoQueueCache;
+    /// use caches::TwoQueueCache;
     ///
     /// let mut cache = TwoQueueCache::new(3).unwrap();
     /// cache.put("a", 1);
@@ -1183,7 +1183,7 @@ impl<K: Hash + Eq, V, RH: BuildHasher, FH: BuildHasher, GH: BuildHasher>
     /// # Examples
     ///
     /// ```
-    /// use hashicorp_lru::TwoQueueCache;
+    /// use caches::TwoQueueCache;
     ///
     /// let mut cache = TwoQueueCache::new(3).unwrap();
     /// cache.put("a", 1);
@@ -1204,7 +1204,7 @@ impl<K: Hash + Eq, V, RH: BuildHasher, FH: BuildHasher, GH: BuildHasher>
     /// # Examples
     ///
     /// ```
-    /// use hashicorp_lru::TwoQueueCache;
+    /// use caches::TwoQueueCache;
     ///
     /// let mut cache = TwoQueueCache::new(3).unwrap();
     /// cache.put("a", 1);
@@ -1225,7 +1225,7 @@ impl<K: Hash + Eq, V, RH: BuildHasher, FH: BuildHasher, GH: BuildHasher>
     /// # Examples
     ///
     /// ```
-    /// use hashicorp_lru::TwoQueueCache;
+    /// use caches::TwoQueueCache;
     ///
     /// struct HddBlock {
     ///     idx: u64,
@@ -1266,7 +1266,7 @@ impl<K: Hash + Eq, V, RH: BuildHasher, FH: BuildHasher, GH: BuildHasher>
     /// # Examples
     ///
     /// ```
-    /// use hashicorp_lru::TwoQueueCache;
+    /// use caches::TwoQueueCache;
     ///
     /// struct HddBlock {
     ///     idx: u64,
@@ -1308,7 +1308,7 @@ impl<K: Hash + Eq, V, RH: BuildHasher, FH: BuildHasher, GH: BuildHasher>
     /// # Examples
     ///
     /// ```
-    /// use hashicorp_lru::TwoQueueCache;
+    /// use caches::TwoQueueCache;
     ///
     /// let mut cache = TwoQueueCache::new(3).unwrap();
     /// cache.put("a", 1);
@@ -1329,7 +1329,7 @@ impl<K: Hash + Eq, V, RH: BuildHasher, FH: BuildHasher, GH: BuildHasher>
     /// # Examples
     ///
     /// ```
-    /// use hashicorp_lru::TwoQueueCache;
+    /// use caches::TwoQueueCache;
     ///
     /// let mut cache = TwoQueueCache::new(3).unwrap();
     /// cache.put("a", 1);
@@ -1350,7 +1350,7 @@ impl<K: Hash + Eq, V, RH: BuildHasher, FH: BuildHasher, GH: BuildHasher>
     /// # Examples
     ///
     /// ```
-    /// use hashicorp_lru::TwoQueueCache;
+    /// use caches::TwoQueueCache;
     ///
     /// let mut cache = TwoQueueCache::new(3).unwrap();
     /// cache.put("a", 1);
@@ -1371,7 +1371,7 @@ impl<K: Hash + Eq, V, RH: BuildHasher, FH: BuildHasher, GH: BuildHasher>
     /// # Examples
     ///
     /// ```
-    /// use hashicorp_lru::TwoQueueCache;
+    /// use caches::TwoQueueCache;
     ///
     /// let mut cache = TwoQueueCache::new(3).unwrap();
     /// cache.put("a", 1);
@@ -1392,7 +1392,7 @@ impl<K: Hash + Eq, V, RH: BuildHasher, FH: BuildHasher, GH: BuildHasher>
     /// # Examples
     ///
     /// ```
-    /// use hashicorp_lru::TwoQueueCache;
+    /// use caches::TwoQueueCache;
     ///
     /// let mut cache = TwoQueueCache::new(3).unwrap();
     /// cache.put("a", 1);
@@ -1413,7 +1413,7 @@ impl<K: Hash + Eq, V, RH: BuildHasher, FH: BuildHasher, GH: BuildHasher>
     /// # Examples
     ///
     /// ```
-    /// use hashicorp_lru::TwoQueueCache;
+    /// use caches::TwoQueueCache;
     ///
     /// let mut cache = TwoQueueCache::new(3).unwrap();
     /// cache.put("a", 1);
@@ -1434,7 +1434,7 @@ impl<K: Hash + Eq, V, RH: BuildHasher, FH: BuildHasher, GH: BuildHasher>
     /// # Examples
     ///
     /// ```
-    /// use hashicorp_lru::TwoQueueCache;
+    /// use caches::TwoQueueCache;
     ///
     /// let mut cache = TwoQueueCache::new(3).unwrap();
     /// cache.put("a", 1);
@@ -1455,7 +1455,7 @@ impl<K: Hash + Eq, V, RH: BuildHasher, FH: BuildHasher, GH: BuildHasher>
     /// # Examples
     ///
     /// ```
-    /// use hashicorp_lru::TwoQueueCache;
+    /// use caches::TwoQueueCache;
     ///
     /// let mut cache = TwoQueueCache::new(3).unwrap();
     /// cache.put("a", 1);
@@ -1476,7 +1476,7 @@ impl<K: Hash + Eq, V, RH: BuildHasher, FH: BuildHasher, GH: BuildHasher>
     /// # Examples
     ///
     /// ```
-    /// use hashicorp_lru::TwoQueueCache;
+    /// use caches::TwoQueueCache;
     ///
     /// struct HddBlock {
     ///     idx: u64,
@@ -1517,7 +1517,7 @@ impl<K: Hash + Eq, V, RH: BuildHasher, FH: BuildHasher, GH: BuildHasher>
     /// # Examples
     ///
     /// ```
-    /// use hashicorp_lru::TwoQueueCache;
+    /// use caches::TwoQueueCache;
     ///
     /// struct HddBlock {
     ///     idx: u64,

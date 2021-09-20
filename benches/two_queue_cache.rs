@@ -3,7 +3,7 @@ use fnv::FnvBuildHasher;
 use rand::{thread_rng, Rng};
 use rustc_hash::FxHasher;
 use std::hash::BuildHasherDefault;
-use hashicorp_lru::{TwoQueueCache, TwoQueueCacheBuilder};
+use caches::{TwoQueueCache, TwoQueueCacheBuilder};
 
 fn bench_two_queue_cache_default_hasher(c: &mut Criterion) {
     c.bench_function("Test TwoQueueCache freq default hasher", move |b| {

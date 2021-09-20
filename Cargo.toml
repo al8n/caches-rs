@@ -1,15 +1,15 @@
 [package]
-name = "hashicorp-lru"
-version = "0.1.5"
+name = "caches"
+version = "0.1.6"
 authors = ["Al Liu <scygliu1@gmail.com>"]
 description = "This is a Rust implementation for HashiCorp's golang-lru. LRUCache, TwoQueueCache and AdaptiveReplacementCache"
-homepage = "https://github.com/al8n/hashicorp-lru"
-repository = "https://github.com/al8n/hashicorp-lru.git"
-documentation = "https://docs.rs/hashicorp-lru/"
+homepage = "https://github.com/al8n/caches"
+repository = "https://github.com/al8n/caches.git"
+documentation = "https://docs.rs/caches/"
 readme = "README.md"
-license = "MIT or Apache-2.0"
-keywords = ["lru", "cache", "2q", "arc-cache", "algorithms", "data-structures"]
-categories = ["lru", "cache", "2q", "arc-cache", "algorithms", "data-structures"]
+license = "MIT OR Apache-2.0"
+keywords = ["lru", "cache", "2q", "arc-cache", "data-structures"]
+categories = ["algorithms", "data-structures"]
 edition = "2018"
 
 
