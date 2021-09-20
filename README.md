@@ -1,5 +1,5 @@
 <div align="center">
-<h1>HashiCorp-LRU</h1>
+<h1>Caches</h1>
 </div>
 <div align="center">
 
