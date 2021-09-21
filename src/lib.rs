@@ -310,29 +310,22 @@ extern crate hashbrown;
 #[cfg(any(test, not(feature = "hashbrown")))]
 extern crate std;
 
-mod adaptive;
-mod lru;
-mod raw;
-mod two_queue;
-
-#[macro_use]
-mod macros;
-
-pub use adaptive::{AdaptiveCache, AdaptiveCacheBuilder};
-pub use lru::LRUCache;
-pub use raw::{
-    KeysLRUIter, KeysMRUIter, LRUIter, LRUIterMut, MRUIter, MRUIterMut, RawLRU, ValuesLRUIter,
-    ValuesLRUIterMut, ValuesMRUIter, ValuesMRUIterMut,
-};
-pub use two_queue::{
-    TwoQueueCache, TwoQueueCacheBuilder, DEFAULT_2Q_GHOST_RATIO, DEFAULT_2Q_RECENT_RATIO,
-};
-
-use crate::raw::EntryNode;
 use core::borrow::Borrow;
 use core::fmt::{Debug, Display, Formatter};
 use core::hash::{Hash, Hasher};
 use core::mem;
+
+
+pub mod lru;
+pub use lru::{RawLRU, LRUCache, AdaptiveCacheBuilder, AdaptiveCache, TwoQueueCache, TwoQueueCacheBuilder};
+
+
+#[macro_use]
+mod macros;
+
+pub mod lfu;
+
+pub mod ristretto;
 
 cfg_hashbrown!(
     /// Re-export for DefaultHashBuilder
@@ -568,8 +561,4 @@ impl Display for CacheError {
             CacheError::InvalidGhostRatio(r) => write!(f, "invalid ghost ratio {}", *r),
         }
     }
-}
-
-unsafe fn swap_value<K, V>(v: &mut V, ent: &mut EntryNode<K, V>) {
-    mem::swap(v, &mut (*(*ent).val.as_mut_ptr()) as &mut V);
 }

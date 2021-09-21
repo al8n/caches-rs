@@ -1,5 +1,6 @@
-use crate::raw::EntryNode;
-use crate::{CacheError, DefaultEvictCallback, DefaultHashBuilder, KeyRef, PutResult, RawLRU, ValuesLRUIterMut, MRUIter, LRUIter, MRUIterMut, LRUIterMut, ValuesLRUIter, ValuesMRUIterMut, ValuesMRUIter, KeysLRUIter, KeysMRUIter};
+use crate::lru::raw::EntryNode;
+use crate::{CacheError, DefaultHashBuilder, PutResult, KeyRef};
+use crate::lru::{DefaultEvictCallback, RawLRU, ValuesLRUIterMut, MRUIter, LRUIter, MRUIterMut, LRUIterMut, ValuesLRUIter, ValuesMRUIterMut, ValuesMRUIter, KeysLRUIter, KeysMRUIter};
 use alloc::boxed::Box;
 use alloc::fmt;
 use core::borrow::Borrow;
@@ -1567,7 +1568,7 @@ impl<K: Hash + Eq, V, RH: BuildHasher, FH: BuildHasher, GH: BuildHasher> fmt::De
 
 #[cfg(test)]
 mod test {
-    use crate::two_queue::TwoQueueCache;
+    use crate::lru::two_queue::TwoQueueCache;
     use crate::{CacheError, PutResult};
     use alloc::vec::Vec;
     use rand::seq::SliceRandom;

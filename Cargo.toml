@@ -35,6 +35,7 @@ nightly = ["hashbrown", "hashbrown/nightly"]
 
 [dependencies]
 hashbrown = {version = "0.11.2", optional = true}
+rand_core = "0.6.3"
 
 [dev-dependencies]
 scoped_threadpool = "0.1.*"

@@ -1,5 +1,7 @@
-use crate::raw::EntryNode;
-use crate::{swap_value, CacheError, DefaultEvictCallback, DefaultHashBuilder, KeyRef, RawLRU, KeysMRUIter, KeysLRUIter, ValuesMRUIter, ValuesLRUIter, ValuesMRUIterMut, ValuesLRUIterMut, MRUIter, MRUIterMut, LRUIter, LRUIterMut};
+use crate::lru::raw::EntryNode;
+use crate::{CacheError, DefaultHashBuilder, KeyRef, DefaultEvictCallback};
+use crate::lru::{swap_value};
+use crate::lru::raw::{RawLRU, KeysMRUIter, KeysLRUIter, ValuesMRUIter, ValuesLRUIter, ValuesMRUIterMut, ValuesLRUIterMut, MRUIter, MRUIterMut, LRUIter, LRUIterMut};
 use core::borrow::Borrow;
 use core::hash::{BuildHasher, Hash};
 
