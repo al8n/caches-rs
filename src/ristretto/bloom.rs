@@ -1,10 +1,8 @@
-
 use core::ptr::{addr_of};
 use alloc::vec::Vec;
 use alloc::vec;
 
 const MASK: [u8; 8] = [1, 2, 4, 8, 16, 32, 64, 128];
-
 const LN_2: f64 = 0.69314718056;
 
 struct Size {
@@ -56,6 +54,7 @@ pub struct Bloom {
     shift: u64
 }
 
+#[derive(Debug)]
 pub enum RistrettoError {
     InvalidParams
 }
@@ -88,7 +87,6 @@ impl Bloom {
             set_locs: entries_locs.locs,
             shift: 64 - size.exp
         };
-
         Ok(this)
     }
 
@@ -131,9 +129,9 @@ impl Bloom {
         });
     }
 
-    /// `has` checks if bit(s) for entry hash is/are set,
+    /// `contains` checks if bit(s) for entry hash is/are set,
     /// returns true if the hash was added to the Bloom Filter.
-    pub fn has(&self, hash: u64) -> bool {
+    pub fn contains(&self, hash: u64) -> bool {
         let h = hash >> self.shift;
         let l = (hash << self.shift) >> self.shift;
         for i in 0..self.set_locs {
@@ -144,11 +142,11 @@ impl Bloom {
         true
     }
 
-    /// `add_if_not_has` only Adds hash, if it's not present in the bloomfilter.
+    /// `contains_or_add` only Adds hash, if it's not present in the bloomfilter.
     /// Returns true if hash was added.
     /// Returns false if hash was already registered in the bloomfilter.
-    pub fn add_if_not_has(&mut self, hash: u64) -> bool {
-        if self.has(hash) {
+    pub fn contains_or_add(&mut self, hash: u64) -> bool {
+        if self.contains(hash) {
             false
         } else {
             self.add(hash);
@@ -166,4 +164,49 @@ impl Bloom {
 
 #[cfg(test)]
 mod test {
+    use crate::ristretto::bloom::Bloom;
+    use std::{vec, println};
+    use std::collections::hash_map::DefaultHasher;
+    use alloc::vec::Vec;
+    use alloc::string::String;
+    use rand::{thread_rng, Rng};
+    use rand::distributions::Alphanumeric;
+    use core::hash::{Hash, Hasher};
+    use crate::DefaultHashBuilder;
+
+    const N: usize = 1 << 16;
+
+    fn get_word_list() -> Vec<Vec<u8>> {
+        let mut word_list = Vec::<Vec<u8>>::with_capacity(N);
+        (0..N).for_each(|_| {
+            let rand_string: String = thread_rng()
+                .sample_iter(&Alphanumeric)
+                .take(30)
+                .map(char::from)
+                .collect();
+            word_list.push(rand_string.as_bytes().to_vec());
+        });
+        word_list
+    }
+
+    fn calculate_hash<T: Hash>(t: &T) -> u64 {
+        let mut s = DefaultHasher::new();
+        t.hash(&mut s);
+        s.finish()
+    }
+
+    #[test]
+    fn test_number_of_wrongs() {
+        let mut bf = Bloom::new(vec![(N as f64) * 10.0, 7f64]).unwrap();
+
+        let mut cnt = 0;
+        get_word_list().into_iter().for_each(|words| {
+            let hash = calculate_hash(&words);
+            if !bf.contains_or_add(hash) {
+                cnt += 1;
+            }
+        });
+
+        println!("Bloomfilter(size = {}) Check for 'false positives': {} wrong positive 'Has' results on 2^16 entries => {}%", bf.bitset.len() << 6, cnt, cnt as f64 / N as f64);
+    }
 }
