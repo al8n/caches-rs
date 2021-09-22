@@ -1,6 +1,7 @@
 
 use core::ptr::{addr_of};
 use alloc::vec::Vec;
+use alloc::vec;
 
 const MASK: [u8; 8] = [1, 2, 4, 8, 16, 32, 64, 128];
 
@@ -78,11 +79,9 @@ impl Bloom {
         }?;
 
         let size = get_size(entries_locs.entries);
-        let mut bitset = Vec::with_capacity((size.size >> 6) as usize);
-        bitset.fill(0);
 
         let this = Self {
-            bitset,
+            bitset: vec![0; (size.size >> 6) as usize],
             elem_num: 0,
             size: size.size - 1,
             size_exp: size.exp,
@@ -94,9 +93,8 @@ impl Bloom {
     }
 
     /// `size` makes Bloom filter with as bitset of size sz.
-    pub fn size(&mut self, sz: u64) {
-        self.bitset = Vec::with_capacity((sz >> 6) as usize);
-        self.bitset.fill(0);
+    pub fn size(&mut self, sz: usize) {
+        self.bitset = vec![0; sz >> 6]
     }
 
     /// `clear` resets the `Bloom` filter
@@ -168,39 +166,4 @@ impl Bloom {
 
 #[cfg(test)]
 mod test {
-    use alloc::vec::Vec;
-    use core::ptr::{self, addr_of};
-    use std::println;
-    use crate::ristretto::bloom::MASK;
-
-    #[test]
-    fn test_ptr() {
-        let mut x = Vec::with_capacity(8);
-        (0..8u64).for_each(|i| x.push(i));
-
-        let raw =  (addr_of!(x[10 >> 6]) as *const u64) as u64;
-        let offset = {
-            let base = ((10 % 64) >> 3) as u64;
-            if base < 8 {
-                0
-            } else {
-                base
-            }
-        };
-
-        let ptr= (raw + offset) as *mut u64;
-
-        unsafe {*ptr = MASK[10 % 8] as u64;}
-
-        println!("{:p}", ptr);
-        // println!("{:p}", addr_of!(x[3 >> 6]) as *const u64);
-        println!("{} {}", raw, offset);
-        println!("{} {:p}", raw + offset, (raw + offset) as *const u64);
-        //
-        // unsafe {println!("{:p} {}", ptr, *ptr);}
-
-        x.iter().for_each(|v| {
-            println!("{:p} {}", v, *v);
-        });
-    }
 }
