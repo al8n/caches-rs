@@ -341,7 +341,7 @@ cfg_hashbrown!(
 
 cfg_not_hashbrown!(
     /// Re-export for DefaultHashBuilder
-    pub type DefaultHashBuilder = std::collections::hash_map::DefaultHasher;
+    pub type DefaultHashBuilder = std::collections::hash_map::RandomState;
 );
 
 // Struct used to hold a reference to a key
