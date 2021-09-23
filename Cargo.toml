@@ -30,17 +30,20 @@ name = "hit_ratio"
 path = "examples/hit_ratio.rs"
 
 [features]
-default = ["hashbrown"]
-nightly = ["hashbrown", "hashbrown/nightly"]
+default = ["std"]
+std = ["rand", "rand/std", "rand/std_rng", "chrono/default"]
+core = ["hashbrown", "rand"]
+nightly = ["std", "rand/nightly"]
+nightly-core = ["hashbrown", "hashbrown/nightly", "rand"]
 
 [dependencies]
 hashbrown = {version = "0.11.2", optional = true}
-rand_core = "0.6.3"
+rand = {version = "0.8.4", optional = true}
+chrono = {version = "0.4", optional = true, default-features = false}
 
 [dev-dependencies]
 scoped_threadpool = "0.1.*"
 stats_alloc = "0.1.*"
-rand = "0.8.4"
 criterion = "0.3.5"
 fnv = "1.0.7"
 rustc-hash = "1.0"

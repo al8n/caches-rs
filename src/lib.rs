@@ -325,8 +325,6 @@ mod macros;
 
 pub mod lfu;
 
-pub mod ristretto;
-
 cfg_hashbrown!(
     /// Re-export for DefaultHashBuilder
     pub type DefaultHashBuilder = hashbrown::hash_map::DefaultHashBuilder;
@@ -334,7 +332,7 @@ cfg_hashbrown!(
 
 cfg_not_hashbrown!(
     /// Re-export for DefaultHashBuilder
-    pub type DefaultHashBuilder = std::collections::hash_map::DefaultHasher;
+    pub type DefaultHashBuilder = std::collections::hash_map::RandomState;
 );
 
 // Struct used to hold a reference to a key

@@ -1844,7 +1844,7 @@ mod tests {
     use crate::{CacheError, PutResult};
     use alloc::collections::BTreeMap;
     use core::fmt::Debug;
-    use hashbrown::HashMap;
+    use std::collections::HashMap;
     use scoped_threadpool::Pool;
     use std::sync::atomic::{AtomicUsize, Ordering};
 

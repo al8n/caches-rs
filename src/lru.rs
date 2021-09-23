@@ -3,6 +3,7 @@
 mod adaptive;
 mod raw;
 mod two_queue;
+mod segmented;
 
 pub use raw::{
     KeysLRUIter, KeysMRUIter, LRUIter, LRUIterMut, MRUIter, MRUIterMut, RawLRU, ValuesLRUIter,

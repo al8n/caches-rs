@@ -164,7 +164,7 @@ impl Bloom {
 
 #[cfg(test)]
 mod test {
-    use crate::ristretto::bloom::Bloom;
+    use crate::lfu::bloom::Bloom;
     use std::{vec, println};
     use std::collections::hash_map::DefaultHasher;
     use alloc::vec::Vec;

@@ -1,4 +1,4 @@
 
-enum LFUError {
-    BadWidth(u64)
+pub enum LFUError {
+    BadWidth(u64),
 }
