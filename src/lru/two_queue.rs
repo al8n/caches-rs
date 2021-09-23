@@ -1,6 +1,9 @@
 use crate::lru::raw::EntryNode;
-use crate::{CacheError, DefaultHashBuilder, PutResult, KeyRef};
-use crate::lru::{DefaultEvictCallback, RawLRU, ValuesLRUIterMut, MRUIter, LRUIter, MRUIterMut, LRUIterMut, ValuesLRUIter, ValuesMRUIterMut, ValuesMRUIter, KeysLRUIter, KeysMRUIter};
+use crate::lru::{
+    DefaultEvictCallback, KeysLRUIter, KeysMRUIter, LRUIter, LRUIterMut, MRUIter, MRUIterMut,
+    RawLRU, ValuesLRUIter, ValuesLRUIterMut, ValuesMRUIter, ValuesMRUIterMut,
+};
+use crate::{CacheError, DefaultHashBuilder, KeyRef, PutResult};
 use alloc::boxed::Box;
 use alloc::fmt;
 use core::borrow::Borrow;
@@ -1486,17 +1489,17 @@ impl<K: Hash + Eq, V, RH: BuildHasher, FH: BuildHasher, GH: BuildHasher>
     /// }
     ///
     /// let mut cache = TwoQueueCache::new(3).unwrap();
-    /// 
+    ///
     /// // put in recent list
     /// cache.put(0, HddBlock { idx: 0, dirty: false, data: [0x00; 512]});
     /// cache.put(1, HddBlock { idx: 1, dirty: true,  data: [0x55; 512]});
     /// cache.put(2, HddBlock { idx: 2, dirty: true,  data: [0x77; 512]});
-    /// 
+    ///
     /// // upgrade to frequent list
     /// cache.put(0, HddBlock { idx: 0, dirty: false, data: [0x00; 512]});
     /// cache.put(1, HddBlock { idx: 1, dirty: true,  data: [0x55; 512]});
     /// cache.put(2, HddBlock { idx: 2, dirty: true,  data: [0x77; 512]});
-    /// 
+    ///
     /// let mut ctr = 2i32;
     /// // write dirty blocks to disk.
     /// for (block_id, block) in cache.frequent_iter_mut() {
@@ -1539,7 +1542,7 @@ impl<K: Hash + Eq, V, RH: BuildHasher, FH: BuildHasher, GH: BuildHasher>
     /// cache.put(2, HddBlock { idx: 2, dirty: true,  data: [0x77; 512]});
     ///
     /// let mut ctr = 0i32;
-    /// 
+    ///
     /// // write dirty blocks to disk.
     /// for (block_id, block) in cache.frequent_iter_lru_mut() {
     ///     if block.dirty {
@@ -1667,13 +1670,13 @@ mod test {
         cache.put(4, 4);
         cache.put(5, 5);
         assert_eq!(cache.recent.len(), 4);
-        assert_eq!(cache.ghost.len(), 1, );
+        assert_eq!(cache.ghost.len(), 1,);
         assert_eq!(cache.frequent.len(), 0);
 
         // Pull in the recently evicted
         assert_eq!(cache.put(1, 1), PutResult::Update(1));
         assert_eq!(cache.recent.len(), 3);
-        assert_eq!(cache.ghost.len(), 1, );
+        assert_eq!(cache.ghost.len(), 1,);
         assert_eq!(cache.frequent.len(), 1);
 
         // Add 6, should cause another recent evict
@@ -1682,13 +1685,13 @@ mod test {
             format!("{:?}", PutResult::<i32, i32>::Put)
         );
         assert_eq!(cache.recent.len(), 3);
-        assert_eq!(cache.ghost.len(), 2, );
+        assert_eq!(cache.ghost.len(), 2,);
         assert_eq!(cache.frequent.len(), 1);
 
         // Add 7, should evict an entry from ghost LRU.
         assert_eq!(cache.put(7, 7), PutResult::Evicted { key: 2, value: 2 });
         assert_eq!(cache.recent.len(), 3);
-        assert_eq!(cache.ghost.len(), 2, );
+        assert_eq!(cache.ghost.len(), 2,);
         assert_eq!(cache.frequent.len(), 1);
 
         // Add 2, should evict an entry from ghost LRU
@@ -1697,19 +1700,19 @@ mod test {
             format!("{:?}", PutResult::Evicted { key: 3, value: 3 })
         );
         assert_eq!(cache.recent.len(), 3);
-        assert_eq!(cache.ghost.len(), 2, );
+        assert_eq!(cache.ghost.len(), 2,);
         assert_eq!(cache.frequent.len(), 1);
 
         // Add 4, should put the entry from ghost LRU to freq LRU
         assert_eq!(cache.put(4, 11), PutResult::Update(4));
         assert_eq!(cache.recent.len(), 2);
-        assert_eq!(cache.ghost.len(), 2, );
+        assert_eq!(cache.ghost.len(), 2,);
         assert_eq!(cache.frequent.len(), 2);
 
         // move all entry in recent to freq.
         assert_eq!(cache.put(2, 22).clone(), PutResult::Update(11));
         assert_eq!(cache.recent.len(), 1);
-        assert_eq!(cache.ghost.len(), 2, );
+        assert_eq!(cache.ghost.len(), 2,);
         assert_eq!(cache.frequent.len(), 3);
 
         assert_eq!(

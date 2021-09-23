@@ -1,6 +1,11 @@
-use core::ptr::{addr_of};
-use alloc::vec::Vec;
+//! This mod implements a Simple Bloom Filter.
+//!
+//! This file is a mechanical translation of the reference Golang code, available at https://github.com/dgraph-io/ristretto/blob/master/z/bbloom.go
+//!
+//! I claim no additional copyright over the original implementation.
 use alloc::vec;
+use alloc::vec::Vec;
+use core::ptr::addr_of;
 
 const MASK: [u8; 8] = [1, 2, 4, 8, 16, 32, 64, 128];
 const LN_2: f64 = 0.69314718056;
@@ -23,10 +28,7 @@ fn get_size(n: u64) -> Size {
         exp += 1;
     }
 
-    Size {
-        size,
-        exp
-    }
+    Size { size, exp }
 }
 
 struct EntriesLocs {
@@ -40,7 +42,7 @@ fn calc_size_by_wrong_positives(num_entries: f64, wrongs: f64) -> EntriesLocs {
 
     EntriesLocs {
         entries: size as u64,
-        locs: locs as u64
+        locs: locs as u64,
     }
 }
 
@@ -51,17 +53,16 @@ pub struct Bloom {
     size_exp: u64,
     size: u64,
     set_locs: u64,
-    shift: u64
+    shift: u64,
 }
 
 #[derive(Debug)]
 pub enum RistrettoError {
-    InvalidParams
+    InvalidParams,
 }
 
 impl Bloom {
     pub fn new(params: Vec<f64>) -> Result<Self, RistrettoError> {
-
         let entries_locs = {
             if params.len() == 2 {
                 if params[1] < 1f64 {
@@ -85,7 +86,7 @@ impl Bloom {
             size: size.size - 1,
             size_exp: size.exp,
             set_locs: entries_locs.locs,
-            shift: 64 - size.exp
+            shift: 64 - size.exp,
         };
         Ok(this)
     }
@@ -102,17 +103,19 @@ impl Bloom {
 
     /// `set` sets the bit[idx] of bitset
     pub fn set(&mut self, idx: usize) {
-        let raw =  (addr_of!(self.bitset[idx >> 6]) as *const u64) as u64;
+        let raw = (addr_of!(self.bitset[idx >> 6]) as *const u64) as u64;
         let offset = ((idx % 64) >> 3) as u64;
-        let ptr= (raw + offset) as *mut u64;
-        unsafe {*ptr |= MASK[idx % 8] as u64;}
+        let ptr = (raw + offset) as *mut u64;
+        unsafe {
+            *ptr |= MASK[idx % 8] as u64;
+        }
     }
 
     /// `is_set` checks if bit[idx] of bitset is set, returns true/false.
     pub fn is_set(&self, idx: usize) -> bool {
-        let raw =  (addr_of!(self.bitset[idx >> 6]) as *const u64) as u64;
+        let raw = (addr_of!(self.bitset[idx >> 6]) as *const u64) as u64;
         let offset = ((idx % 64) >> 3) as u64;
-        let ptr= (raw + offset) as *mut u64;
+        let ptr = (raw + offset) as *mut u64;
         unsafe {
             let r = (*ptr >> (idx % 8)) & 1;
             r == 1
@@ -164,15 +167,14 @@ impl Bloom {
 
 #[cfg(test)]
 mod test {
-    use crate::lfu::bloom::Bloom;
-    use std::{vec, println};
-    use std::collections::hash_map::DefaultHasher;
-    use alloc::vec::Vec;
+    use crate::lfu::tinylfu::bloom::Bloom;
     use alloc::string::String;
-    use rand::{thread_rng, Rng};
-    use rand::distributions::Alphanumeric;
+    use alloc::vec::Vec;
     use core::hash::{Hash, Hasher};
-    use crate::DefaultHashBuilder;
+    use rand::distributions::Alphanumeric;
+    use rand::{thread_rng, Rng};
+    use std::collections::hash_map::DefaultHasher;
+    use std::{println, vec};
 
     const N: usize = 1 << 16;
 

@@ -1,7 +1,10 @@
 use crate::lru::raw::EntryNode;
-use crate::{CacheError, DefaultHashBuilder, KeyRef, DefaultEvictCallback};
-use crate::lru::{swap_value};
-use crate::lru::raw::{RawLRU, KeysMRUIter, KeysLRUIter, ValuesMRUIter, ValuesLRUIter, ValuesMRUIterMut, ValuesLRUIterMut, MRUIter, MRUIterMut, LRUIter, LRUIterMut};
+use crate::lru::raw::{
+    KeysLRUIter, KeysMRUIter, LRUIter, LRUIterMut, MRUIter, MRUIterMut, RawLRU, ValuesLRUIter,
+    ValuesLRUIterMut, ValuesMRUIter, ValuesMRUIterMut,
+};
+use crate::lru::swap_value;
+use crate::{CacheError, DefaultEvictCallback, DefaultHashBuilder, KeyRef};
 use core::borrow::Borrow;
 use core::hash::{BuildHasher, Hash};
 
@@ -180,16 +183,16 @@ impl<RH: BuildHasher, REH: BuildHasher, FH: BuildHasher, FEH: BuildHasher>
 /// similar to the [`TwoQueueCache`] (2Q) which requires setting parameters.
 ///
 /// # Example
-/// 
+///
 /// ```rust
 ///
 /// use caches::AdaptiveCache;
-/// 
+///
 /// let mut cache = AdaptiveCache::new(4).unwrap();
-/// 
+///
 /// // fill recent
-/// (0..4).for_each(|i| cache.put(i, i)); 
-/// 
+/// (0..4).for_each(|i| cache.put(i, i));
+///
 /// // move to frequent
 /// cache.get(&0);
 /// cache.get(&1);
@@ -254,7 +257,7 @@ impl<RH: BuildHasher, REH: BuildHasher, FH: BuildHasher, FEH: BuildHasher>
 /// // recent evict:   (MRU) [5, 3] (LRU)
 /// // frequent evict: (MRU) [0] (LRU)
 /// ```
-/// 
+///
 /// [`RawLRU`]: struct.RawLRU.html
 /// [`TwoQueueCache`]: struct.TwoQueueCache.html
 pub struct AdaptiveCache<
@@ -664,7 +667,7 @@ impl<K: Hash + Eq, V, RH: BuildHasher, REH: BuildHasher, FH: BuildHasher, FEH: B
         self.recent_evict.purge();
         self.frequent_evict.purge();
     }
-    
+
     /// Returns the current partition value of the cache.  
     pub fn partition(&self) -> usize {
         self.p
@@ -691,23 +694,23 @@ impl<K: Hash + Eq, V, RH: BuildHasher, REH: BuildHasher, FH: BuildHasher, FEH: B
     pub fn len(&self) -> usize {
         self.recent.len() + self.frequent.len()
     }
-    
-    /// Returns the number of key-value pairs that are currently in the the recent LRU. 
+
+    /// Returns the number of key-value pairs that are currently in the the recent LRU.
     pub fn recent_len(&self) -> usize {
         self.recent.len()
     }
 
-    /// Returns the number of key-value pairs that are currently in the the frequent LRU. 
+    /// Returns the number of key-value pairs that are currently in the the frequent LRU.
     pub fn frequent_len(&self) -> usize {
         self.frequent.len()
     }
 
-    /// Returns the number of key-value pairs that are currently in the the recent evict LRU. 
+    /// Returns the number of key-value pairs that are currently in the the recent evict LRU.
     pub fn recent_evict_len(&self) -> usize {
         self.recent_evict.len()
     }
 
-    /// Returns the number of key-value pairs that are currently in the the frequent evict LRU. 
+    /// Returns the number of key-value pairs that are currently in the the frequent evict LRU.
     pub fn frequent_evict_len(&self) -> usize {
         self.frequent_evict.len()
     }
@@ -1743,8 +1746,8 @@ impl<K: Hash + Eq, V, RH: BuildHasher, REH: BuildHasher, FH: BuildHasher, FEH: B
 mod test {
     use crate::AdaptiveCache;
     use alloc::vec::Vec;
-    use rand::{thread_rng, Rng};
     use rand::seq::SliceRandom;
+    use rand::{thread_rng, Rng};
 
     #[test]
     fn test_arc_cache_random_ops() {
@@ -1775,7 +1778,6 @@ mod test {
             assert!(cache.recent.len() + cache.frequent.len() <= size)
         })
     }
-
 
     #[test]
     fn test_arc_get_recent_to_frequent() {

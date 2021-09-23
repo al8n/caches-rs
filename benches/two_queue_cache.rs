@@ -1,9 +1,9 @@
+use caches::{TwoQueueCache, TwoQueueCacheBuilder};
 use criterion::{black_box, criterion_group, criterion_main, BatchSize, Criterion};
 use fnv::FnvBuildHasher;
 use rand::{thread_rng, Rng};
 use rustc_hash::FxHasher;
 use std::hash::BuildHasherDefault;
-use caches::{TwoQueueCache, TwoQueueCacheBuilder};
 
 fn bench_two_queue_cache_default_hasher(c: &mut Criterion) {
     c.bench_function("Test TwoQueueCache freq default hasher", move |b| {
@@ -63,8 +63,7 @@ fn bench_two_queue_cache_fx_hasher(c: &mut Criterion) {
                     .set_recent_hasher(BuildHasherDefault::<FxHasher>::default())
                     .set_frequent_hasher(BuildHasherDefault::<FxHasher>::default())
                     .set_ghost_hasher(BuildHasherDefault::<FxHasher>::default());
-                let l =
-                    TwoQueueCache::from_builder(builder).unwrap();
+                let l = TwoQueueCache::from_builder(builder).unwrap();
                 (l, nums)
             },
             |(mut l, nums)| {
@@ -104,8 +103,7 @@ fn bench_two_queue_cache_fnv_hasher(c: &mut Criterion) {
                     .set_recent_hasher(FnvBuildHasher::default())
                     .set_frequent_hasher(FnvBuildHasher::default())
                     .set_ghost_hasher(FnvBuildHasher::default());
-                let l =
-                    TwoQueueCache::from_builder(builder).unwrap();
+                let l = TwoQueueCache::from_builder(builder).unwrap();
                 (l, nums)
             },
             |(mut l, nums)| {

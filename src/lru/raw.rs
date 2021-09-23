@@ -1844,8 +1844,8 @@ mod tests {
     use crate::{CacheError, PutResult};
     use alloc::collections::BTreeMap;
     use core::fmt::Debug;
-    use std::collections::HashMap;
     use scoped_threadpool::Pool;
+    use std::collections::HashMap;
     use std::sync::atomic::{AtomicUsize, Ordering};
 
     fn assert_opt_eq<V: PartialEq + Debug>(opt: Option<&V>, v: V) {

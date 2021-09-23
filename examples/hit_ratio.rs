@@ -1,6 +1,5 @@
+use caches::{AdaptiveCache, LRUCache, TwoQueueCache};
 use rand::{thread_rng, Rng};
-use caches::{AdaptiveCache, TwoQueueCache, LRUCache};
-
 
 fn lru_cache(cases: Vec<(usize, Vec<u64>)>) -> Vec<(usize, f64)> {
     let mut result: Vec<(usize, f64)> = Vec::with_capacity(cases.len());
@@ -94,23 +93,31 @@ fn arc_cache(cases: Vec<(usize, Vec<u64>)>) -> Vec<(usize, f64)> {
 
 fn main() {
     let cases: Vec<usize> = [10_000, 100_000, 200_000, 500_000, 1000_000].to_vec();
-    let random_numbers: Vec<(usize, Vec<u64>)> = cases.iter().map(|total| {
-        let total = *total;
-        let mut rng = thread_rng();
-        let nums: Vec<u64> = (0..(total * 2))
-            .map(|i| {
-                if i % 2 == 0 {
-                    rng.gen::<u64>() % 16384
-                } else {
-                    rng.gen::<u64>() % 32768
-                }
-            })
-            .collect();
-        (total, nums)
-    }).collect();
-
+    let random_numbers: Vec<(usize, Vec<u64>)> = cases
+        .iter()
+        .map(|total| {
+            let total = *total;
+            let mut rng = thread_rng();
+            let nums: Vec<u64> = (0..(total * 2))
+                .map(|i| {
+                    if i % 2 == 0 {
+                        rng.gen::<u64>() % 16384
+                    } else {
+                        rng.gen::<u64>() % 32768
+                    }
+                })
+                .collect();
+            (total, nums)
+        })
+        .collect();
 
     println!("LRU Hit Ratio: {:?}", lru_cache(random_numbers.clone()));
-    println!("TwoQueueCache Hit Ratio: {:?}", two_queue_cache(random_numbers.clone()));
-    println!("AdaptiveCache Hit Ratio: {:?}", arc_cache(random_numbers.clone()));
+    println!(
+        "TwoQueueCache Hit Ratio: {:?}",
+        two_queue_cache(random_numbers.clone())
+    );
+    println!(
+        "AdaptiveCache Hit Ratio: {:?}",
+        arc_cache(random_numbers.clone())
+    );
 }

@@ -1,6 +1,1 @@
-
-
-
-pub(crate) struct RawLFU {
-
-}
+pub(crate) struct RawLFU {}
