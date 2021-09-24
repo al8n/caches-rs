@@ -4,7 +4,7 @@
 //!
 //! I claim no additional copyright over the original implementation.
 use crate::lfu::tinylfu::sketch::{DEPTH, next_power_of_2, CountMinRow};
-use crate::lfu::error::LFUError;
+use crate::lfu::error::CacheError;
 
 use alloc::vec::Vec;
 use alloc::vec;

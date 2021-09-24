@@ -281,21 +281,26 @@
 //! [`TwoQueueCache`]: struct.TwoQueueCache.html
 //! [`AdaptiveCache`]: struct.AdaptiveCache.html
 mod adaptive;
+mod error;
 mod raw;
 mod segmented;
 mod two_queue;
 
 pub use adaptive::{AdaptiveCache, AdaptiveCacheBuilder};
+pub use error::CacheError;
 pub use raw::{
     KeysLRUIter, KeysMRUIter, LRUIter, LRUIterMut, MRUIter, MRUIterMut, RawLRU, ValuesLRUIter,
     ValuesLRUIterMut, ValuesMRUIter, ValuesMRUIterMut,
 };
+pub use segmented::{SegmentedCache, SegmentedCacheBuilder};
 pub use two_queue::{
     TwoQueueCache, TwoQueueCacheBuilder, DEFAULT_2Q_GHOST_RATIO, DEFAULT_2Q_RECENT_RATIO,
 };
 
 use crate::lru::raw::EntryNode;
 use crate::DefaultEvictCallback;
+use alloc::boxed::Box;
+use core::hash::Hash;
 use core::mem;
 
 /// `LRUCache` is a fixed size LRU cache.
@@ -303,4 +308,9 @@ pub type LRUCache<K, V, S> = RawLRU<K, V, DefaultEvictCallback, S>;
 
 unsafe fn swap_value<K, V>(v: &mut V, ent: &mut EntryNode<K, V>) {
     mem::swap(v, &mut (*(*ent).val.as_mut_ptr()) as &mut V);
+}
+
+fn debox<K: Hash + Eq, V>(bks: &mut Box<EntryNode<K, V>>) -> *mut EntryNode<K, V> {
+    let ent_ptr: *mut EntryNode<K, V> = &mut **bks;
+    ent_ptr
 }

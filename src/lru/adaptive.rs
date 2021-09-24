@@ -3,8 +3,8 @@ use crate::lru::raw::{
     KeysLRUIter, KeysMRUIter, LRUIter, LRUIterMut, MRUIter, MRUIterMut, RawLRU, ValuesLRUIter,
     ValuesLRUIterMut, ValuesMRUIter, ValuesMRUIterMut,
 };
-use crate::lru::swap_value;
-use crate::{CacheError, DefaultEvictCallback, DefaultHashBuilder, KeyRef};
+use crate::lru::{swap_value, CacheError};
+use crate::{DefaultEvictCallback, DefaultHashBuilder, KeyRef};
 use core::borrow::Borrow;
 use core::hash::{BuildHasher, Hash};
 
@@ -468,7 +468,7 @@ impl<K: Hash + Eq, V, RH: BuildHasher, REH: BuildHasher, FH: BuildHasher, FEH: B
         self.recent.put(k, v);
     }
 
-    /// Returns a mutable reference to the value of the key in the cache or `None` if it
+    /// Returns a reference to the value of the key in the cache or `None` if it
     /// is not present in the cache. Moves the key to the head of the LRU list if it exists.
     ///
     /// # Example

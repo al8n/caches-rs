@@ -35,8 +35,9 @@ use core::mem;
 use core::ptr;
 use core::usize;
 
+use crate::lru::{CacheError, debox};
 use crate::{
-    import_hashbrown, import_std, CacheError, DefaultEvictCallback, DefaultHashBuilder, KeyRef,
+    import_hashbrown, import_std, DefaultEvictCallback, DefaultHashBuilder, KeyRef,
     OnEvictCallback, PutResult,
 };
 
@@ -1841,7 +1842,8 @@ impl_send_and_sync_for_iterator! {
 #[cfg(test)]
 mod tests {
     use super::RawLRU;
-    use crate::{CacheError, PutResult};
+    use crate::lru::CacheError;
+    use crate::PutResult;
     use alloc::collections::BTreeMap;
     use core::fmt::Debug;
     use scoped_threadpool::Pool;

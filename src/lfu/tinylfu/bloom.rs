@@ -3,6 +3,7 @@
 //! This file is a mechanical translation of the reference Golang code, available at https://github.com/dgraph-io/ristretto/blob/master/z/bbloom.go
 //!
 //! I claim no additional copyright over the original implementation.
+use crate::lfu::error::CacheError;
 use alloc::vec;
 use alloc::vec::Vec;
 use core::ptr::addr_of;
@@ -47,7 +48,7 @@ fn calc_size_by_wrong_positives(num_entries: f64, wrongs: f64) -> EntriesLocs {
 }
 
 /// Bloom filter
-pub struct Bloom {
+pub(crate) struct Bloom {
     bitset: Vec<u64>,
     elem_num: u64,
     size_exp: u64,
@@ -56,13 +57,8 @@ pub struct Bloom {
     shift: u64,
 }
 
-#[derive(Debug)]
-pub enum RistrettoError {
-    InvalidParams,
-}
-
 impl Bloom {
-    pub fn new(params: Vec<f64>) -> Result<Self, RistrettoError> {
+    pub fn new(params: Vec<f64>) -> Result<Self, CacheError> {
         let entries_locs = {
             if params.len() == 2 {
                 if params[1] < 1f64 {
@@ -74,7 +70,7 @@ impl Bloom {
                     })
                 }
             } else {
-                Err(RistrettoError::InvalidParams)
+                Err(CacheError::InvalidParams)
             }
         }?;
 

@@ -1,2 +1,2 @@
-mod sketch;
 mod bloom;
+mod sketch;

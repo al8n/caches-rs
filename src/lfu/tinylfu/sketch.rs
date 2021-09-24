@@ -13,8 +13,6 @@ cfg_not_std!(
     pub(crate) use count_min_sketch_core::CountMinSketch;
 );
 
-use crate::lfu::error::LFUError;
-
 const DEPTH: usize = 4;
 
 // return the integer >= i which is a power of two
