@@ -97,9 +97,14 @@ impl<RH: BuildHasher, FH: BuildHasher> SegmentedCacheBuilder<RH, FH> {
 
         Ok(SegmentedCache {
             probationary_size: self.probationary_size,
-            probationary: RawLRU::with_hasher(self.probationary_size, self.probationary_hasher.unwrap()).unwrap(),
+            probationary: RawLRU::with_hasher(
+                self.probationary_size,
+                self.probationary_hasher.unwrap(),
+            )
+            .unwrap(),
             protected_size: self.protected_size,
-            protected: RawLRU::with_hasher(self.protected_size, self.protected_hasher.unwrap()).unwrap(),
+            protected: RawLRU::with_hasher(self.protected_size, self.protected_hasher.unwrap())
+                .unwrap(),
         })
     }
 }
@@ -245,13 +250,14 @@ impl<K: Hash + Eq, V, RH: BuildHasher, FH: BuildHasher> SegmentedCache<K, V, RH,
             .get(k)
             // does not in protected LRU, we try to find it in
             // probationary LRU
-            .or_else(|| self.probationary
-                .peek(k)
-                // we find the element in probationary LRU
-                // remove the element from the probationary LRU
-                // and put it in protected LRU.
-                .and_then(|v| self.move_to_protected(k, v))
-            )
+            .or_else(|| {
+                self.probationary
+                    .peek(k)
+                    // we find the element in probationary LRU
+                    // remove the element from the probationary LRU
+                    // and put it in protected LRU.
+                    .and_then(|v| self.move_to_protected(k, v))
+            })
     }
 
     /// Returns a mutable reference to the value of the key in the cache or `None` if it
@@ -280,12 +286,14 @@ impl<K: Hash + Eq, V, RH: BuildHasher, FH: BuildHasher> SegmentedCache<K, V, RH,
             .get_mut(k)
             // does not in protected LRU, we try to find it in
             // probationary LRU
-            .or_else(|| self.probationary
-                .peek_mut(k)
-                // we find the element in probationary LRU
-                // remove the element from the probationary LRU
-                // and put it in protected LRU.
-                .and_then(|v| self.move_to_protected(k, v)))
+            .or_else(|| {
+                self.probationary
+                    .peek_mut(k)
+                    // we find the element in probationary LRU
+                    // remove the element from the probationary LRU
+                    // and put it in protected LRU.
+                    .and_then(|v| self.move_to_protected(k, v))
+            })
     }
 
     /// Returns a reference to the value corresponding to the key in the cache or `None` if it is
@@ -338,11 +346,7 @@ impl<K: Hash + Eq, V, RH: BuildHasher, FH: BuildHasher> SegmentedCache<K, V, RH,
             .or_else(|| self.probationary.peek_mut(k))
     }
 
-    fn move_to_protected<T, Q>(
-        &mut self,
-        k: &Q,
-        v: T,
-    ) -> Option<T>
+    fn move_to_protected<T, Q>(&mut self, k: &Q, v: T) -> Option<T>
     where
         KeyRef<K>: Borrow<Q>,
         Q: Hash + Eq + ?Sized,

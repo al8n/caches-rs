@@ -585,15 +585,11 @@ impl<K: Hash + Eq, V, RH: BuildHasher, FH: BuildHasher, GH: BuildHasher>
         Q: Hash + Eq + ?Sized,
     {
         // Check if this is a frequent value
-        self.frequent
-            .get(k)
-            .or_else(move || match self.recent.remove_and_return_ent(k) {
-                None => None,
-                Some(ent) => {
-                    let _ = self.frequent.put_box(ent);
-                    self.frequent.peek(k)
-                }
-            })
+        self.frequent.get(k).or_else(|| {
+            self.recent
+                .peek(k)
+                .and_then(|v| self.move_to_frequent(k, v))
+        })
     }
 
     /// Returns a mutable reference to the value of the key in the cache or `None` if it
@@ -620,15 +616,11 @@ impl<K: Hash + Eq, V, RH: BuildHasher, FH: BuildHasher, GH: BuildHasher>
         Q: Hash + Eq + ?Sized,
     {
         // Check if this is a frequent value
-        self.frequent
-            .get_mut(k)
-            .or_else(|| match self.recent.remove_and_return_ent(k) {
-                None => None,
-                Some(ent) => {
-                    let _ = self.frequent.put_box(ent);
-                    self.frequent.peek_mut(k)
-                }
-            })
+        self.frequent.get_mut(k).or_else(|| {
+            self.recent
+                .peek_mut(k)
+                .and_then(|v| self.move_to_frequent(k, v))
+        })
     }
 
     /// Returns a reference to the value corresponding to the key in the cache or `None` if it is
@@ -1555,6 +1547,26 @@ impl<K: Hash + Eq, V, RH: BuildHasher, FH: BuildHasher, GH: BuildHasher>
     /// ```
     pub fn frequent_iter_lru_mut(&mut self) -> LRUIterMut<'_, K, V> {
         self.frequent.iter_lru_mut()
+    }
+
+    fn move_to_frequent<T, Q>(&mut self, k: &Q, v: T) -> Option<T>
+    where
+        KeyRef<K>: Borrow<Q>,
+        Q: Hash + Eq + ?Sized,
+    {
+        // remove the element from the recent LRU
+        // and put it in frequent LRU.
+        if let Some(ent) = self.recent.remove_and_return_ent(k) {
+            match self.frequent.put_or_evict_box(ent) {
+                None => Some(v),
+                // the Some branch will not reach, because we remove one from
+                // recent LRU, and add this one to frequent LRU, the total size
+                // of the cache is not changed. We still keep this for good measure.
+                Some(_) => Some(v),
+            }
+        } else {
+            None
+        }
     }
 }
 

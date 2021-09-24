@@ -5,6 +5,7 @@ use crate::lru::raw::{
 };
 use crate::lru::{swap_value, CacheError};
 use crate::{DefaultEvictCallback, DefaultHashBuilder, KeyRef};
+use alloc::boxed::Box;
 use core::borrow::Borrow;
 use core::hash::{BuildHasher, Hash};
 
@@ -493,13 +494,7 @@ impl<K: Hash + Eq, V, RH: BuildHasher, REH: BuildHasher, FH: BuildHasher, FEH: B
         // promote it to frequent
         self.recent
             .peek(k)
-            .and_then(|v| {
-                let mut ent = self.recent.map.remove(k).unwrap();
-                let ent_ptr = ent.as_mut();
-                self.recent.detach(ent_ptr);
-                self.frequent.put_box(ent);
-                Some(v)
-            })
+            .and_then(|v| self.move_to_frequent(k, v))
             .or_else(|| self.frequent.get(k))
     }
 
@@ -530,13 +525,7 @@ impl<K: Hash + Eq, V, RH: BuildHasher, REH: BuildHasher, FH: BuildHasher, FEH: B
         // promote it to frequent
         self.recent
             .peek_mut(k)
-            .and_then(|v| {
-                let mut ent = self.recent.map.remove(k).unwrap();
-                let ent_ptr = ent.as_mut();
-                self.recent.detach(ent_ptr);
-                self.frequent.put_box(ent);
-                Some(v)
-            })
+            .and_then(|v| self.move_to_frequent(k, v))
             .or_else(|| self.frequent.get_mut(k))
     }
 
@@ -1738,6 +1727,20 @@ impl<K: Hash + Eq, V, RH: BuildHasher, REH: BuildHasher, FH: BuildHasher, FEH: B
                 None => None,
                 Some(ent) => Some(self.frequent_evict.put_box(ent)),
             };
+        }
+    }
+
+    fn move_to_frequent<T, Q>(&mut self, k: &Q, v: T) -> Option<T>
+    where
+        KeyRef<K>: Borrow<Q>,
+        Q: Hash + Eq + ?Sized,
+    {
+        match self.recent.remove_and_return_ent(k) {
+            None => None,
+            Some(mut ent) => {
+                self.frequent.put_box(ent);
+                Some(v)
+            }
         }
     }
 }

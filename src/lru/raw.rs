@@ -35,7 +35,7 @@ use core::mem;
 use core::ptr;
 use core::usize;
 
-use crate::lru::{CacheError, debox};
+use crate::lru::{debox, CacheError};
 use crate::{
     import_hashbrown, import_std, DefaultEvictCallback, DefaultHashBuilder, KeyRef,
     OnEvictCallback, PutResult,
