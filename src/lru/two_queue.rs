@@ -1,7 +1,7 @@
 use crate::lru::raw::EntryNode;
 use crate::lru::{
-    CacheError, DefaultEvictCallback, KeysLRUIter, KeysMRUIter, LRUIter, LRUIterMut, MRUIter,
-    MRUIterMut, RawLRU, ValuesLRUIter, ValuesLRUIterMut, ValuesMRUIter, ValuesMRUIterMut,
+    swap_value, CacheError, DefaultEvictCallback, KeysLRUIter, KeysMRUIter, LRUIter, LRUIterMut,
+    MRUIter, MRUIterMut, RawLRU, ValuesLRUIter, ValuesLRUIterMut, ValuesMRUIter, ValuesMRUIterMut,
 };
 use crate::{DefaultHashBuilder, KeyRef, PutResult};
 use alloc::boxed::Box;
@@ -458,28 +458,30 @@ impl<K: Hash + Eq, V, RH: BuildHasher, FH: BuildHasher, GH: BuildHasher>
 
         // Check if the value is frequently used already,
         // and just update the value
-        match self.frequent.map.get_mut(&key_ref).map(|node| {
+        if let Some(ent_ptr) = self.frequent.map.get_mut(&key_ref).map(|node| {
             let node_ptr: *mut EntryNode<K, V> = &mut **node;
             node_ptr
         }) {
-            None => {}
-            Some(ent_ptr) => {
-                self.frequent.update(&mut v, ent_ptr);
-                return PutResult::Update(v);
-            }
+            self.frequent.update(&mut v, ent_ptr);
+            return PutResult::Update(v);
         }
 
         // Check if the value is recently used, and promote
         // the value into the frequent list
-        if self.recent.contains(&key_ref) {
-            // here we remove one entry
-            let mut ent = self.recent.map.remove(&key_ref).unwrap();
-            let ent_ptr = ent.as_mut();
-            self.recent.detach(ent_ptr);
-            unsafe {
-                mem::swap(&mut v, &mut (*(*ent_ptr).val.as_mut_ptr()) as &mut V);
-            }
-            self.frequent.put_box(ent);
+        if let Some(_) = self
+            .recent
+            // here we remove an entry from recent LRU if key exists
+            .remove_and_return_ent(&key_ref)
+            .map(|mut ent| {
+                unsafe {
+                    swap_value(&mut v, ent.as_mut());
+                }
+                // here we add the entry to frequent LRU,
+                // the result will always be PutResult::Put
+                // because we have removed this entry from recent LRU
+                self.frequent.put_box(ent)
+            })
+        {
             return PutResult::Update(v);
         }
 

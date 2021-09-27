@@ -4,8 +4,7 @@
 //!
 //! I claim no additional copyright over the original implementation.
 use crate::lfu::tinylfu::sketch::{DEPTH, next_power_of_2, CountMinRow};
-use crate::lfu::error::CacheError;
-
+use crate::lfu::tinylfu::error::TinyLFUError;
 use alloc::vec::Vec;
 use alloc::vec;
 use core::ops::{Index, IndexMut};
@@ -19,9 +18,9 @@ pub(crate) struct CountMinSketch {
 }
 
 impl CountMinSketch {
-    pub(crate) fn new(ctrs: u64) -> Result<Self, LFUError> {
+    pub(crate) fn new(ctrs: u64) -> Result<Self, TinyLFUError> {
         if ctrs < 1 {
-            return Err(LFUError::BadWidth(ctrs));
+            return Err(TinyLFUError::InvalidCountMinWidth(ctrs));
         }
 
         let ctrs = next_power_of_2(ctrs);

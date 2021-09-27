@@ -4,10 +4,10 @@
 //!
 //! I claim no additional copyright over the original implementation.
 use crate::lfu::tinylfu::sketch::{next_power_of_2, DEPTH, CountMinRow};
-use crate::lfu::error::CacheError;
 use alloc::vec::Vec;
 use rand::{rngs::StdRng, SeedableRng, Rng};
 use chrono::{Utc};
+use crate::lfu::tinylfu::error::TinyLFUError;
 
 
 /// `CountMinSketch` is a small conservative-update count-min sketch
@@ -19,9 +19,9 @@ pub(crate) struct CountMinSketch {
 }
 
 impl CountMinSketch {
-    pub(crate) fn new(ctrs: u64) -> Result<Self, CacheError> {
+    pub(crate) fn new(ctrs: u64) -> Result<Self, TinyLFUError> {
         if ctrs < 1 {
-            return Err(CacheError::BadWidth(ctrs));
+            return Err(TinyLFUError::InvalidCountMinWidth(ctrs));
         }
 
         let ctrs = next_power_of_2(ctrs);

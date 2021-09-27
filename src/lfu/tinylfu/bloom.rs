@@ -3,7 +3,6 @@
 //! This file is a mechanical translation of the reference Golang code, available at https://github.com/dgraph-io/ristretto/blob/master/z/bbloom.go
 //!
 //! I claim no additional copyright over the original implementation.
-use crate::lfu::error::CacheError;
 use alloc::vec;
 use alloc::vec::Vec;
 use core::ptr::addr_of;
@@ -58,21 +57,17 @@ pub(crate) struct Bloom {
 }
 
 impl Bloom {
-    pub fn new(params: Vec<f64>) -> Result<Self, CacheError> {
+    pub fn new(cap: usize, false_positive_ratio: f64) -> Self {
         let entries_locs = {
-            if params.len() == 2 {
-                if params[1] < 1f64 {
-                    Ok(calc_size_by_wrong_positives(params[0], params[1]))
-                } else {
-                    Ok(EntriesLocs {
-                        entries: params[0] as u64,
-                        locs: params[1] as u64,
-                    })
-                }
+            if false_positive_ratio < 1f64 {
+                calc_size_by_wrong_positives(cap as f64, false_positive_ratio)
             } else {
-                Err(CacheError::InvalidParams)
+                EntriesLocs {
+                    entries: cap as u64,
+                    locs: false_positive_ratio as u64,
+                }
             }
-        }?;
+        };
 
         let size = get_size(entries_locs.entries);
 
@@ -84,7 +79,7 @@ impl Bloom {
             set_locs: entries_locs.locs,
             shift: 64 - size.exp,
         };
-        Ok(this)
+        this
     }
 
     /// `size` makes Bloom filter with as bitset of size sz.
@@ -92,7 +87,12 @@ impl Bloom {
         self.bitset = vec![0; sz >> 6]
     }
 
-    /// `clear` resets the `Bloom` filter
+    /// `reset` resets the `Bloom` filter
+    pub fn reset(&mut self) {
+        self.bitset.iter_mut().for_each(|v| *v = 0);
+    }
+
+    /// `clear` clear the `Bloom` filter
     pub fn clear(&mut self) {
         self.bitset.iter_mut().for_each(|v| *v = 0);
     }
@@ -170,7 +170,7 @@ mod test {
     use rand::distributions::Alphanumeric;
     use rand::{thread_rng, Rng};
     use std::collections::hash_map::DefaultHasher;
-    use std::{println, vec};
+    use std::println;
 
     const N: usize = 1 << 16;
 
@@ -195,7 +195,7 @@ mod test {
 
     #[test]
     fn test_number_of_wrongs() {
-        let mut bf = Bloom::new(vec![(N as f64) * 10.0, 7f64]).unwrap();
+        let mut bf = Bloom::new(N * 10, 7f64);
 
         let mut cnt = 0;
         get_word_list().into_iter().for_each(|words| {

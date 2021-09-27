@@ -5,7 +5,6 @@ use crate::lru::raw::{
 };
 use crate::lru::{swap_value, CacheError};
 use crate::{DefaultEvictCallback, DefaultHashBuilder, KeyRef};
-use alloc::boxed::Box;
 use core::borrow::Borrow;
 use core::hash::{BuildHasher, Hash};
 
@@ -351,29 +350,30 @@ impl<K: Hash + Eq, V, RH: BuildHasher, REH: BuildHasher, FH: BuildHasher, FEH: B
         let key_ref = KeyRef { k: &k };
         // check if the value is contained in recent, and potentially
         // promote it to frequent
-        if self.recent.contains(&key_ref) {
-            let mut ent = self.recent.map.remove(&key_ref).unwrap();
-            let ent_ptr = ent.as_mut();
-            self.recent.detach(ent_ptr);
-
-            unsafe {
-                swap_value(&mut v, ent_ptr);
-            }
-
-            self.frequent.put_box(ent);
+        if let Some(_) = self
+            .recent
+            // here we remove an entry from recent LRU if key exists
+            .remove_and_return_ent(&key_ref)
+            .map(|mut ent| {
+                unsafe {
+                    swap_value(&mut v, ent.as_mut());
+                }
+                // here we add the entry to frequent LRU,
+                // the result will always be PutResult::Put
+                // because we have removed this entry from recent LRU
+                self.frequent.put_box(ent)
+            })
+        {
             return;
         }
 
         // check if the value is already in frequent and update it
-        match self.frequent.map.get_mut(&key_ref).map(|node| {
+        if let Some(ent_ptr) = self.frequent.map.get_mut(&key_ref).map(|node| {
             let node_ptr: *mut EntryNode<K, V> = &mut **node;
             node_ptr
         }) {
-            None => {}
-            Some(ent_ptr) => {
-                self.frequent.update(&mut v, ent_ptr);
-                return;
-            }
+            self.frequent.update(&mut v, ent_ptr);
+            return;
         }
 
         let recent_len = self.recent.len();
@@ -684,22 +684,22 @@ impl<K: Hash + Eq, V, RH: BuildHasher, REH: BuildHasher, FH: BuildHasher, FEH: B
         self.recent.len() + self.frequent.len()
     }
 
-    /// Returns the number of key-value pairs that are currently in the the recent LRU.
+    /// Returns the number of key-value pairs that are currently in the recent LRU.
     pub fn recent_len(&self) -> usize {
         self.recent.len()
     }
 
-    /// Returns the number of key-value pairs that are currently in the the frequent LRU.
+    /// Returns the number of key-value pairs that are currently in the frequent LRU.
     pub fn frequent_len(&self) -> usize {
         self.frequent.len()
     }
 
-    /// Returns the number of key-value pairs that are currently in the the recent evict LRU.
+    /// Returns the number of key-value pairs that are currently in the recent evict LRU.
     pub fn recent_evict_len(&self) -> usize {
         self.recent_evict.len()
     }
 
-    /// Returns the number of key-value pairs that are currently in the the frequent evict LRU.
+    /// Returns the number of key-value pairs that are currently in the frequent evict LRU.
     pub fn frequent_evict_len(&self) -> usize {
         self.frequent_evict.len()
     }
@@ -1737,7 +1737,7 @@ impl<K: Hash + Eq, V, RH: BuildHasher, REH: BuildHasher, FH: BuildHasher, FEH: B
     {
         match self.recent.remove_and_return_ent(k) {
             None => None,
-            Some(mut ent) => {
+            Some(ent) => {
                 self.frequent.put_box(ent);
                 Some(v)
             }

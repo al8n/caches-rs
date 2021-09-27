@@ -42,10 +42,10 @@
 
 extern crate alloc;
 
-#[cfg(feature = "hashbrown")]
+#[cfg(not(feature = "std"))]
 extern crate hashbrown;
 
-#[cfg(any(test, not(feature = "hashbrown")))]
+#[cfg(any(test, feature = "std"))]
 extern crate std;
 
 use core::borrow::Borrow;
@@ -54,20 +54,27 @@ use core::hash::{Hash, Hasher};
 
 pub mod lru;
 pub use lru::{
-    AdaptiveCache, AdaptiveCacheBuilder, LRUCache, RawLRU, TwoQueueCache, TwoQueueCacheBuilder,
+    AdaptiveCache, AdaptiveCacheBuilder, LRUCache, RawLRU, TwoQueueCache, TwoQueueCacheBuilder, SegmentedCache, SegmentedCacheBuilder
 };
+
+pub mod cache_api;
+pub use cache_api::Cache;
+pub mod lfu;
+pub use lfu::{WTinyLFUCache, WTinyLFUCacheBuilder};
 
 #[macro_use]
 mod macros;
 
-pub mod lfu;
 
-cfg_hashbrown!(
+
+
+
+cfg_not_std!(
     /// Re-export for DefaultHashBuilder
     pub type DefaultHashBuilder = hashbrown::hash_map::DefaultHashBuilder;
 );
 
-cfg_not_hashbrown!(
+cfg_std!(
     /// Re-export for DefaultHashBuilder
     pub type DefaultHashBuilder = std::collections::hash_map::RandomState;
 );

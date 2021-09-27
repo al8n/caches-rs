@@ -35,7 +35,7 @@ use core::mem;
 use core::ptr;
 use core::usize;
 
-use crate::lru::{debox, CacheError};
+use crate::lru::CacheError;
 use crate::{
     import_hashbrown, import_std, DefaultEvictCallback, DefaultHashBuilder, KeyRef,
     OnEvictCallback, PutResult,
@@ -173,7 +173,13 @@ impl<K: Hash + Eq, V> RawLRU<K, V> {
     /// let mut cache: RawLRU<isize, &str> = RawLRU::new(10).unwrap();
     /// ```
     pub fn new(cap: usize) -> Result<Self, CacheError> {
-        check_size(cap).map(|_| Self::construct(cap, HashMap::with_capacity(cap), None))
+        check_size(cap).map(|_| {
+            Self::construct(
+                cap,
+                HashMap::with_capacity_and_hasher(cap, DefaultHashBuilder::default()),
+                None,
+            )
+        })
     }
 }
 
@@ -231,7 +237,13 @@ impl<K: Hash + Eq, V, E: OnEvictCallback> RawLRU<K, V, E, DefaultHashBuilder> {
     /// let mut cache: RawLRU<isize, &str, EvictedCounter> = RawLRU::with_on_evict_cb(10, EvictedCounter::default()).unwrap();
     /// ```
     pub fn with_on_evict_cb(cap: usize, cb: E) -> Result<Self, CacheError> {
-        check_size(cap).map(|_| Self::construct(cap, HashMap::with_capacity(cap), Some(cb)))
+        check_size(cap).map(|_| {
+            Self::construct(
+                cap,
+                HashMap::with_capacity_and_hasher(cap, DefaultHashBuilder::default()),
+                Some(cb),
+            )
+        })
     }
 }
 
@@ -367,8 +379,7 @@ impl<K: Hash + Eq, V, E: OnEvictCallback, S: BuildHasher> RawLRU<K, V, E, S> {
         }
     }
 
-    /// Returns a mutable reference to the value of the key in the cache or `None` if it
-    /// is not present in the cache. Moves the key to the head of the LRU list if it exists.
+    /// Returns the least recent used entry(&K, &V) in the cache or `None` if the cache is empty.
     ///
     /// # Example
     ///
@@ -381,7 +392,7 @@ impl<K: Hash + Eq, V, E: OnEvictCallback, S: BuildHasher> RawLRU<K, V, E, S> {
     /// cache.put("banana", 6);
     /// cache.put("pear", 2);
     ///
-    /// assert_eq!(cache.get(&"banana"), Some(&6));
+    /// assert_eq!(cache.get_lru(), Some((&"banana", &6)));
     /// ```
     pub fn get_lru(&mut self) -> Option<(&K, &V)> {
         if self.is_empty() {
@@ -392,6 +403,35 @@ impl<K: Hash + Eq, V, E: OnEvictCallback, S: BuildHasher> RawLRU<K, V, E, S> {
             let node = (*self.tail).prev;
             self.detach(node);
             self.attach(node);
+
+            let val = &(*(*node).val.as_ptr()) as &V;
+            let key = &(*(*node).key.as_ptr()) as &K;
+            Some((key, val))
+        }
+    }
+
+    /// Returns the most recent used entry(&K, &V) in the cache or `None` if the cache is empty.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use caches::RawLRU;
+    /// let mut cache = RawLRU::new(2).unwrap();
+    ///
+    /// cache.put("apple", 8);
+    /// cache.put("banana", 4);
+    /// cache.put("banana", 6);
+    /// cache.put("pear", 2);
+    ///
+    /// assert_eq!(cache.get_mru(), Some((&"pear", &2)));
+    /// ```
+    pub fn get_mru(&self) -> Option<(&K, &V)> {
+        if self.is_empty() {
+            return None;
+        }
+
+        unsafe {
+            let node = (*self.head).next;
 
             let val = &(*(*node).val.as_ptr()) as &V;
             let key = &(*(*node).key.as_ptr()) as &K;
@@ -434,8 +474,7 @@ impl<K: Hash + Eq, V, E: OnEvictCallback, S: BuildHasher> RawLRU<K, V, E, S> {
         }
     }
 
-    /// Returns a mutable reference to the value of the key in the cache or `None` if it
-    /// is not present in the cache. Moves the key to the head of the LRU list if it exists.
+    /// Returns the least recent used entry(&K, &mut V) in the cache or `None` if the cache is empty.
     ///
     /// # Example
     ///
@@ -459,6 +498,34 @@ impl<K: Hash + Eq, V, E: OnEvictCallback, S: BuildHasher> RawLRU<K, V, E, S> {
             let node = (*self.tail).prev;
             self.detach(node);
             self.attach(node);
+            let key = &(*(*node).key.as_ptr()) as &K;
+            let val = &mut (*(*node).val.as_mut_ptr()) as &mut V;
+            Some((key, val))
+        }
+    }
+
+    /// Returns the most recent used entry (&K, &mut V) in the cache or `None` if the cache is empty.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use caches::RawLRU;
+    /// let mut cache = RawLRU::new(2).unwrap();
+    ///
+    /// cache.put("apple", 8);
+    /// cache.put("banana", 4);
+    /// cache.put("banana", 6);
+    /// cache.put("pear", 2);
+    ///
+    /// assert_eq!(cache.get_mru_mut(), Some((&"pear", &mut 2)));
+    /// ```
+    pub fn get_mru_mut(&mut self) -> Option<(&K, &mut V)> {
+        if self.is_empty() {
+            return None;
+        }
+
+        unsafe {
+            let node = (*self.head).next;
             let key = &(*(*node).key.as_ptr()) as &K;
             let val = &mut (*(*node).val.as_mut_ptr()) as &mut V;
             Some((key, val))
@@ -626,6 +693,66 @@ impl<K: Hash + Eq, V, E: OnEvictCallback, S: BuildHasher> RawLRU<K, V, E, S> {
         let (key, val);
         unsafe {
             let node = (*self.tail).prev;
+            key = &(*(*node).key.as_ptr()) as &K;
+            val = &mut (*(*node).val.as_mut_ptr()) as &mut V;
+        }
+
+        Some((key, val))
+    }
+
+    /// Returns the value corresponding to the most recently used item or `None` if the
+    /// cache is empty. Like `peek`, `peek_lru` does not update the LRU list so the item's
+    /// position will be unchanged.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use caches::RawLRU;
+    /// let mut cache = RawLRU::new(2).unwrap();
+    ///
+    /// cache.put(1, "a");
+    /// cache.put(2, "b");
+    ///
+    /// assert_eq!(cache.peek_mru(), Some((&2, &"b")));
+    /// ```
+    pub fn peek_mru(&self) -> Option<(&K, &V)> {
+        if self.is_empty() {
+            return None;
+        }
+
+        let (key, val);
+        unsafe {
+            let node = (*self.head).next;
+            key = &(*(*node).key.as_ptr()) as &K;
+            val = &(*(*node).val.as_ptr()) as &V;
+        }
+
+        Some((key, val))
+    }
+
+    /// Returns the mutable value corresponding to the most recently used item or `None` if the
+    /// cache is empty. Like `peek`, `peek_lru` does not update the LRU list so the item's
+    /// position will be unchanged.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use caches::RawLRU;
+    /// let mut cache = RawLRU::new(2).unwrap();
+    ///
+    /// cache.put(1, "a");
+    /// cache.put(2, "b");
+    ///
+    /// assert_eq!(cache.peek_mru_mut(), Some((&2, &mut "b")));
+    /// ```
+    pub fn peek_mru_mut(&mut self) -> Option<(&K, &mut V)> {
+        if self.is_empty() {
+            return None;
+        }
+
+        let (key, val);
+        unsafe {
+            let node = (*self.head).next;
             key = &(*(*node).key.as_ptr()) as &K;
             val = &mut (*(*node).val.as_mut_ptr()) as &mut V;
         }
