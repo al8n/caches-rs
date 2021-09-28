@@ -221,12 +221,15 @@ impl<K: Hash + Eq, KH: KeyHasher<K>, S: BuildHasher> SampledLFU<K, KH, S> {
     pub fn update_hashed_key(&mut self, k: u64, cost: i64) -> bool {
         // Update the cost of an existing key, but don't worry about evicting.
         // Evictions will be handled the next time a new item is added
-        self.key_costs.get_mut(&k).map_or(false, |prev| {
-            let prev_val = *prev;
-            self.used += cost - prev_val;
-            *prev = cost;
-            true
-        })
+        match self.key_costs.get_mut(&k) {
+            None => false,
+            Some(prev) => {
+                let prev_val = *prev;
+                self.used += cost - prev_val;
+                *prev = cost;
+                true
+            }
+        }
     }
 
     /// Returns the hash for the key

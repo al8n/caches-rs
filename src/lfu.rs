@@ -1,15 +1,7 @@
 //! LFU based caches implementation.
 //!
+//! This module contains LFU based caches, [`WTinyLFUCache`], [`TinyLFU`] and [`SampledLFU`].
 //!
-//! ## Acknowledgments
-//! - dgryski's [go-tinylfu]
-//! - The implementation of TinyLFU and SampledLFU are inspired by [Dgraph's ristretto].
-//! - Gil Einziger's paper -- [TinyLFU: A Highly Efficient Cache Admission Policy]
-//!
-//! [go-tinylfu]: https://github.com/dgryski/go-tinylfu
-//! [Dgraph's ristretto]: https://github.com/dgraph-io/ristretto/blob/master/policy.go
-//! [TinyLFU: A Highly Efficient Cache Admission Policy]: https://arxiv.org/pdf/1512.00727.pdf
-mod raw;
 pub mod sampled;
 pub mod tinylfu;
 mod wtinylfu;

@@ -212,4 +212,23 @@ mod test {
 
         println!("Bloomfilter(size = {}) Check for 'false positives': {} wrong positive 'Has' results on 2^16 entries => {}%", bf.bitset.len() << 6, cnt, cnt as f64 / N as f64);
     }
+
+    #[test]
+    fn test_total_size() {
+        let bf = Bloom::new(10, 7f64);
+        assert_eq!(bf.total_size(), 104);
+    }
+
+    #[test]
+    fn test_size_exp() {
+        let bf = Bloom::new(10, 7f64);
+        assert_eq!(bf.size_exp(), 9);
+    }
+
+    #[test]
+    fn test_size() {
+        let mut bf = Bloom::new(10, 7f64);
+        bf.size(1024);
+        assert_eq!(bf.bitset.len(), 16);
+    }
 }

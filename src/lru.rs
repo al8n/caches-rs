@@ -1,9 +1,8 @@
 //! LRU based caches implementation.
 //!
-//! This module contains three LRU based cache, [`LRUCache`], [`SegmentedCache`] , [`TwoQueueCache`] and [`AdaptiveCache`].
+//! This module contains four LRU based caches, [`LRUCache`], [`SegmentedCache`] , [`TwoQueueCache`] and [`AdaptiveCache`].
 //!
 //! See [Introduction](#introduction), [Trade-Off](#trade-off) and [Usages](#usages) for more details.
-//! </div>
 //!
 //! ## Introduction
 //!

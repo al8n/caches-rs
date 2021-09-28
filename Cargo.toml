@@ -1,16 +1,16 @@
 [package]
 name = "caches"
-version = "0.1.7"
+version = "0.2.0"
 authors = ["Al Liu <scygliu1@gmail.com>"]
-description = "This is a Rust implementation for HashiCorp's golang-lru. LRUCache, TwoQueueCache and AdaptiveReplacementCache"
+description = "This is a Rust implementation for popular caches (support no_std)."
 homepage = "https://github.com/al8n/caches"
 repository = "https://github.com/al8n/caches.git"
 documentation = "https://docs.rs/caches/"
 readme = "README.md"
 license = "MIT OR Apache-2.0"
-keywords = ["lru", "cache", "2q", "arc-cache", "data-structures"]
-categories = ["algorithms", "data-structures"]
-edition = "2021"
+keywords = ["lru", "cache", "tinylfu", "no_std", "data-structures"]
+categories = ["algorithms", "data-structures", "no-std"]
+edition = "2018"
 
 [[bench]]
 name = "lru_cache"
@@ -51,3 +51,4 @@ criterion = "0.3.5"
 fnv = "1.0.7"
 rand = "0.8.4"
 rustc-hash = "1.0"
+cascara = "0.1.0"

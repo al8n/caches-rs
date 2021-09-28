@@ -11,7 +11,40 @@
 //! [<img alt="crates.io" src="https://img.shields.io/crates/v/caches?logo=rust&style=for-the-badge" height="22">][crates-url]
 //! [<img alt="license-apache" src="https://img.shields.io/badge/License-Apache%202.0-blue.svg?style=for-the-badge&logo=Apache" height="22">][license-apache-url]
 //! [<img alt="license-mit" src="https://img.shields.io/badge/License-MIT-yellow.svg?style=for-the-badge&fontColor=white&logoColor=f5c076&logo=data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIGhlaWdodD0iMzZweCIgdmlld0JveD0iMCAwIDI0IDI0IiB3aWR0aD0iMzZweCIgZmlsbD0iI2Y1YzA3NiI+PHBhdGggZD0iTTAgMGgyNHYyNEgwVjB6IiBmaWxsPSJub25lIi8+PHBhdGggZD0iTTEwLjA4IDEwLjg2Yy4wNS0uMzMuMTYtLjYyLjMtLjg3cy4zNC0uNDYuNTktLjYyYy4yNC0uMTUuNTQtLjIyLjkxLS4yMy4yMy4wMS40NC4wNS42My4xMy4yLjA5LjM4LjIxLjUyLjM2cy4yNS4zMy4zNC41My4xMy40Mi4xNC42NGgxLjc5Yy0uMDItLjQ3LS4xMS0uOS0uMjgtMS4yOXMtLjQtLjczLS43LTEuMDEtLjY2LS41LTEuMDgtLjY2LS44OC0uMjMtMS4zOS0uMjNjLS42NSAwLTEuMjIuMTEtMS43LjM0cy0uODguNTMtMS4yLjkyLS41Ni44NC0uNzEgMS4zNlM4IDExLjI5IDggMTEuODd2LjI3YzAgLjU4LjA4IDEuMTIuMjMgMS42NHMuMzkuOTcuNzEgMS4zNS43Mi42OSAxLjIuOTFjLjQ4LjIyIDEuMDUuMzQgMS43LjM0LjQ3IDAgLjkxLS4wOCAxLjMyLS4yM3MuNzctLjM2IDEuMDgtLjYzLjU2LS41OC43NC0uOTQuMjktLjc0LjMtMS4xNWgtMS43OWMtLjAxLjIxLS4wNi40LS4xNS41OHMtLjIxLjMzLS4zNi40Ni0uMzIuMjMtLjUyLjNjLS4xOS4wNy0uMzkuMDktLjYuMS0uMzYtLjAxLS42Ni0uMDgtLjg5LS4yMy0uMjUtLjE2LS40NS0uMzctLjU5LS42MnMtLjI1LS41NS0uMy0uODgtLjA4LS42Ny0uMDgtMXYtLjI3YzAtLjM1LjAzLS42OC4wOC0xLjAxek0xMiAyQzYuNDggMiAyIDYuNDggMiAxMnM0LjQ4IDEwIDEwIDEwIDEwLTQuNDggMTAtMTBTMTcuNTIgMiAxMiAyem0wIDE4Yy00LjQxIDAtOC0zLjU5LTgtOHMzLjU5LTggOC04IDggMy41OSA4IDgtMy41OSA4LTggOHoiLz48L3N2Zz4=" height="22">][license-mit-url]
+//!
+//! This is a Rust implementation for popular caches (support no_std).
+//!
+//! See [Introduction](#introduction), [Installation](#installation) and [Usages](#usages) for more details.
 //! </div>
+//!
+//! ## Introduction
+//! The MSRV for this crate is 1.55.0.
+//!
+//! - LRU
+//! - `LRUCache`, `SegmentedCache`, `TwoQueueCache` and `AdaptiveCache`.
+//! - LFU
+//! - `TinyLFU`, `SampledLFU`, and `WTinyLFUCache`
+//!
+//! ## Installation
+//! - std
+//! ```toml
+//! [dependencies]
+//! caches = "0.2.0"
+//! ```
+//! - no_std
+//! ```toml
+//! [dependencies]
+//! caches = {version: "0.2.0", features: ["core"]}
+//! ```
+//!
+//! ## Usages
+//! Please see [`examples`].
+//!
+//!
+//! ## Roadmap
+//! - [x] `0.2`: Support TinyLFU, SampledLFU, WTinyLFUCache
+//! - [ ] `0.3`: Support LIRS, DLIRS, DSLRU
+//! - [ ] `0.4`: Add ttl feature to support
 //!
 //! ## Acknowledgments
 //! - The implementation of `RawLRU` is highly inspired by
@@ -20,6 +53,12 @@
 //!
 //! - Thanks for [HashiCorp's golang-lru](https://github.com/hashicorp/golang-lru)
 //! providing the amazing Go implementation.
+//!
+//! - Ramakrishna's paper: [Caching strategies to improve disk system performance]
+//!
+//! - The implementation of TinyLFU and SampledLFU are inspired by [Dgraph's ristretto] and dgryski's [go-tinylfu].
+//!
+//! - Gil Einziger's paper: [TinyLFU: A Highly Efficient Cache Admission Policy]
 //!
 //! [`Rc`]: https://doc.rust-lang.org/std/rc/struct.Rc.html
 //! [`Box`]: https://doc.rust-lang.org/std/boxed/struct.Box.html
@@ -36,6 +75,11 @@
 //! [license-apache-url]: https://opensource.org/licenses/Apache-2.0
 //! [license-mit-url]: https://opensource.org/licenses/Apache-2.0
 //! [crates-url]: https://crates.io/crates/caches
+//! [Caching strategies to improve disk system performance]: https://dl.acm.org/doi/10.1109/2.268884
+//! [go-tinylfu]: https://github.com/dgryski/go-tinylfu
+//! [Dgraph's ristretto]: https://github.com/dgraph-io/ristretto/blob/master/policy.go
+//! [TinyLFU: A Highly Efficient Cache Admission Policy]: https://arxiv.org/pdf/1512.00727.pdf
+//! [`examples`]: https://github.com/al8n/caches-rs/tree/main/examples
 #![no_std]
 #![cfg_attr(feature = "nightly", feature(negative_impls, auto_traits))]
 #![deny(missing_docs)]
