@@ -464,10 +464,17 @@ impl<K: Hash + Eq, V, KH: KeyHasher<K>, FH: BuildHasher, RH: BuildHasher, WH: Bu
     /// ```
     ///
     /// [`PutResult`]: struct.PutResult.html
-    fn put(&mut self, k: K, v: V) -> PutResult<K, V> {
-        match self.lru.remove(&k) {
+    fn put(&mut self, k: K, v: V) -> PutResult<K, V>
+    {
+        #[cfg(any(feature = "nightly", feature = "nightly-core"))]
+        let new_key_ref = &KeyRef {k: &k};
+
+        #[cfg(not(any(feature = "nightly", feature = "nightly-core")))]
+        let new_key_ref = &k;
+
+        match self.lru.remove(new_key_ref) {
             None => {
-                if self.slru.contains(&k) {
+                if self.slru.contains(new_key_ref) {
                     return self.slru.put(k, v);
                 }
 
@@ -475,14 +482,26 @@ impl<K: Hash + Eq, V, KH: KeyHasher<K>, FH: BuildHasher, RH: BuildHasher, WH: Bu
                     PutResult::Put => PutResult::Put,
                     PutResult::Update(v) => PutResult::Update(v),
                     PutResult::Evicted { key, value } => {
+                        #[cfg(any(feature = "nightly", feature = "nightly-core"))]
+                        let evicted_key_ref = &KeyRef{k: &key};
+
+                        #[cfg(not(any(feature = "nightly", feature = "nightly-core")))]
+                        let evicted_key_ref = &key;
+
                         if self.slru.len() < self.slru.cap() {
                             return self.slru.put(key, value);
                         }
 
                         match self.slru.peek_lru_from_probationary() {
                             None => self.slru.put(key, value),
-                            Some((k, _)) => {
-                                if self.tinylfu.lt(&key, k) {
+                            Some((lruk, _)) => {
+                                #[cfg(any(feature = "nightly", feature = "nightly-core"))]
+                                    let lru_key_ref = &KeyRef{k: lruk};
+
+                                #[cfg(not(any(feature = "nightly", feature = "nightly-core")))]
+                                    let lru_key_ref = lruk;
+
+                                if self.tinylfu.lt(evicted_key_ref, lru_key_ref) {
                                     PutResult::Evicted { key, value }
                                 } else {
                                     self.slru.put(key, value)

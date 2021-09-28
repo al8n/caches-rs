@@ -250,7 +250,7 @@ mod test {
 
     #[test]
     fn test_remove() {
-        let mut lfu = SampledLFU::new(4);
+        let mut lfu = SampledLFU::<u64>::new(4);
         lfu.increment_hashed_key(lfu.hash_key(&1), 1);
         lfu.increment(&2, 2);
         assert_eq!(lfu.remove(&2), Some(2));
@@ -261,7 +261,7 @@ mod test {
 
     #[test]
     fn test_room() {
-        let mut l = SampledLFU::new(16);
+        let mut l = SampledLFU::<u64>::new(16);
         l.increment(&1, 1);
         l.increment_hashed_key(2, 2);
         l.increment_hashed_key(3, 3);
@@ -270,7 +270,7 @@ mod test {
 
     #[test]
     fn test_clear() {
-        let mut l = SampledLFU::new(4);
+        let mut l = SampledLFU::<u64>::new(4);
         l.increment(&1, 1);
         l.increment(&2, 2);
         l.increment(&3, 3);
@@ -281,7 +281,7 @@ mod test {
 
     #[test]
     fn test_update() {
-        let mut l = SampledLFU::new(5);
+        let mut l = SampledLFU::<u64>::new(5);
         l.increment(&1, 1);
         l.increment(&2, 2);
         assert!(l.update(&1, 2));
@@ -294,7 +294,7 @@ mod test {
 
     #[test]
     fn test_fill_sample() {
-        let mut l = SampledLFU::new(16);
+        let mut l = SampledLFU::<u64>::new(16);
         l.increment(&4, 4);
         l.increment(&5, 5);
         let sample = l.fill_sample(vec![(1, 1), (2, 2), (3, 3)]);
