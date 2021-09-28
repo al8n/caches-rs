@@ -54,6 +54,30 @@ macro_rules! cfg_nightly_hidden_doc {
 
 #[macro_export]
 #[doc(hidden)]
+macro_rules! cfg_std {
+    ($($item:item)*) => {
+        $(
+            #[cfg(feature = "std")]
+            #[cfg_attr(docsrs, doc(cfg(feature = "std")))]
+            $item
+        )*
+    }
+}
+
+#[macro_export]
+#[doc(hidden)]
+macro_rules! cfg_not_std {
+    ($($item:item)*) => {
+        $(
+            #[cfg(not(feature = "std"))]
+            #[cfg_attr(docsrs, doc(cfg(not(feature = "std"))))]
+            $item
+        )*
+    }
+}
+
+#[macro_export]
+#[doc(hidden)]
 macro_rules! cfg_hashbrown {
     ($($item:item)*) => {
         $(

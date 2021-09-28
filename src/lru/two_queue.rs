@@ -1,5 +1,9 @@
-use crate::raw::EntryNode;
-use crate::{CacheError, DefaultEvictCallback, DefaultHashBuilder, KeyRef, PutResult, RawLRU, ValuesLRUIterMut, MRUIter, LRUIter, MRUIterMut, LRUIterMut, ValuesLRUIter, ValuesMRUIterMut, ValuesMRUIter, KeysLRUIter, KeysMRUIter};
+use crate::lru::raw::EntryNode;
+use crate::lru::{
+    swap_value, CacheError, DefaultEvictCallback, KeysLRUIter, KeysMRUIter, LRUIter, LRUIterMut,
+    MRUIter, MRUIterMut, RawLRU, ValuesLRUIter, ValuesLRUIterMut, ValuesMRUIter, ValuesMRUIterMut,
+};
+use crate::{Cache, DefaultHashBuilder, KeyRef, PutResult};
 use alloc::boxed::Box;
 use alloc::fmt;
 use core::borrow::Borrow;
@@ -39,7 +43,7 @@ impl Default for TwoQueueCacheBuilder {
     ///
     /// # Example
     /// ```rust
-    /// use caches::{TwoQueueCacheBuilder, TwoQueueCache};
+    /// use caches::{TwoQueueCacheBuilder, TwoQueueCache, Cache};
     /// let mut cache: TwoQueueCache<u64, u64> = TwoQueueCacheBuilder::default()
     ///     .set_size(5)
     ///     .finalize()
@@ -64,7 +68,7 @@ impl TwoQueueCacheBuilder {
     ///
     /// # Example
     /// ```rust
-    /// use caches::{TwoQueueCacheBuilder, TwoQueueCache};
+    /// use caches::{TwoQueueCacheBuilder, TwoQueueCache, Cache};
     /// use rustc_hash::FxHasher;
     /// use std::hash::BuildHasherDefault;
     ///
@@ -222,7 +226,7 @@ impl<RH: BuildHasher, FH: BuildHasher, GH: BuildHasher> TwoQueueCacheBuilder<RH,
 ///
 /// ```rust
 ///
-/// use caches::{TwoQueueCache, PutResult};
+/// use caches::{TwoQueueCache, Cache, PutResult};
 ///
 /// let mut cache = TwoQueueCache::new(4).unwrap();
 ///
@@ -287,7 +291,7 @@ impl<K: Hash + Eq, V> TwoQueueCache<K, V> {
     ///
     /// # Example
     /// ```rust
-    /// use caches::{TwoQueueCacheBuilder, TwoQueueCache};
+    /// use caches::{TwoQueueCacheBuilder, TwoQueueCache, Cache};
     /// use rustc_hash::FxHasher;
     /// use std::hash::BuildHasherDefault;
     ///
@@ -314,7 +318,7 @@ impl<K: Hash + Eq, V> TwoQueueCache<K, V> {
     /// # Example
     ///
     /// ```rust
-    /// use caches::TwoQueueCache;
+    /// use caches::{Cache, TwoQueueCache};
     ///
     /// let mut cache: TwoQueueCache<u64, u64>= TwoQueueCache::with_recent_ratio(5, 0.3).unwrap();
     /// ```
@@ -327,7 +331,7 @@ impl<K: Hash + Eq, V> TwoQueueCache<K, V> {
     /// # Example
     ///
     /// ```rust
-    /// use caches::TwoQueueCache;
+    /// use caches::{Cache, TwoQueueCache};
     ///
     /// let mut cache: TwoQueueCache<u64, u64>= TwoQueueCache::with_ghost_ratio(5, 0.6).unwrap();
     /// ```
@@ -340,7 +344,7 @@ impl<K: Hash + Eq, V> TwoQueueCache<K, V> {
     /// # Example
     ///
     /// ```rust
-    /// use caches::TwoQueueCache;
+    /// use caches::{Cache, TwoQueueCache};
     ///
     /// let mut cache: TwoQueueCache<u64, u64>= TwoQueueCache::with_2q_parameters(5, 0.3, 0.6).unwrap();
     /// ```
@@ -377,34 +381,9 @@ impl<K: Hash + Eq, V> TwoQueueCache<K, V> {
     }
 }
 
-impl<K: Hash + Eq, V, RH: BuildHasher, FH: BuildHasher, GH: BuildHasher>
-    TwoQueueCache<K, V, RH, FH, GH>
+impl<K: Hash + Eq, V, RH: BuildHasher, FH: BuildHasher, GH: BuildHasher> Cache<K, V>
+    for TwoQueueCache<K, V, RH, FH, GH>
 {
-    /// Create a [`TwoQueueCache`] from [`TwoQueueCacheBuilder`].
-    ///
-    /// # Example
-    /// ```rust
-    /// use caches::{TwoQueueCacheBuilder, TwoQueueCache};
-    /// use rustc_hash::FxHasher;
-    /// use std::hash::BuildHasherDefault;
-    ///
-    /// let builder = TwoQueueCacheBuilder::new(5)
-    ///     .set_recent_ratio(0.3)
-    ///     .set_ghost_ratio(0.4)
-    ///     .set_recent_hasher(BuildHasherDefault::<FxHasher>::default())
-    ///     .set_frequent_hasher(BuildHasherDefault::<FxHasher>::default())
-    ///     .set_ghost_hasher(BuildHasherDefault::<FxHasher>::default());
-    ///
-    /// let mut cache = TwoQueueCache::from_builder(builder).unwrap();
-    /// cache.put(1, 1);
-    /// ```
-    ///
-    /// [`TwoQueueCacheBuilder`]: struct.TwoQueueCacheBuilder.html
-    /// [`TwoQueueCache`]: struct.TwoQueueCache.html
-    pub fn from_builder(builder: TwoQueueCacheBuilder<RH, FH, GH>) -> Result<Self, CacheError> {
-        builder.finalize()
-    }
-
     /// Puts a key-value pair to the cache.
     ///
     /// # Note
@@ -414,7 +393,7 @@ impl<K: Hash + Eq, V, RH: BuildHasher, FH: BuildHasher, GH: BuildHasher>
     ///
     /// # Example
     /// ```rust
-    /// use caches::{TwoQueueCache, PutResult};
+    /// use caches::{TwoQueueCache, Cache, PutResult};
     ///
     /// let mut cache = TwoQueueCache::new(4).unwrap();
     /// // Add 1,2,3,4,5 -> Evict 1
@@ -449,33 +428,35 @@ impl<K: Hash + Eq, V, RH: BuildHasher, FH: BuildHasher, GH: BuildHasher>
     /// ```
     ///
     /// [`TwoQueueCache`]: struct.TwoQueueCache.html
-    pub fn put(&mut self, k: K, mut v: V) -> PutResult<K, V> {
+    fn put(&mut self, k: K, mut v: V) -> PutResult<K, V> {
         let key_ref = KeyRef { k: &k };
 
         // Check if the value is frequently used already,
         // and just update the value
-        match self.frequent.map.get_mut(&key_ref).map(|node| {
+        if let Some(ent_ptr) = self.frequent.map.get_mut(&key_ref).map(|node| {
             let node_ptr: *mut EntryNode<K, V> = &mut **node;
             node_ptr
         }) {
-            None => {}
-            Some(ent_ptr) => {
-                self.frequent.update(&mut v, ent_ptr);
-                return PutResult::Update(v);
-            }
+            self.frequent.update(&mut v, ent_ptr);
+            return PutResult::Update(v);
         }
 
         // Check if the value is recently used, and promote
         // the value into the frequent list
-        if self.recent.contains(&key_ref) {
-            // here we remove one entry
-            let mut ent = self.recent.map.remove(&key_ref).unwrap();
-            let ent_ptr = ent.as_mut();
-            self.recent.detach(ent_ptr);
-            unsafe {
-                mem::swap(&mut v, &mut (*(*ent_ptr).val.as_mut_ptr()) as &mut V);
-            }
-            self.frequent.put_box(ent);
+        if let Some(_) = self
+            .recent
+            // here we remove an entry from recent LRU if key exists
+            .remove_and_return_ent(&key_ref)
+            .map(|mut ent| {
+                unsafe {
+                    swap_value(&mut v, ent.as_mut());
+                }
+                // here we add the entry to frequent LRU,
+                // the result will always be PutResult::Put
+                // because we have removed this entry from recent LRU
+                self.frequent.put_box(ent)
+            })
+        {
             return PutResult::Update(v);
         }
 
@@ -565,7 +546,7 @@ impl<K: Hash + Eq, V, RH: BuildHasher, FH: BuildHasher, GH: BuildHasher>
     /// # Example
     ///
     /// ```
-    /// use caches::TwoQueueCache;
+    /// use caches::{Cache, TwoQueueCache};
     /// let mut cache = TwoQueueCache::new(2).unwrap();
     ///
     /// cache.put("apple", 8);
@@ -575,21 +556,17 @@ impl<K: Hash + Eq, V, RH: BuildHasher, FH: BuildHasher, GH: BuildHasher>
     ///
     /// assert_eq!(cache.get(&"banana"), Some(&6));
     /// ```
-    pub fn get<'a, Q>(&'a mut self, k: &'a Q) -> Option<&'a V>
+    fn get<'a, Q>(&mut self, k: &'a Q) -> Option<&'a V>
     where
         KeyRef<K>: Borrow<Q>,
         Q: Hash + Eq + ?Sized,
     {
         // Check if this is a frequent value
-        self.frequent
-            .get(k)
-            .or_else(move || match self.recent.remove_and_return_ent(k) {
-                None => None,
-                Some(ent) => {
-                    let _ = self.frequent.put_box(ent);
-                    self.frequent.peek(k)
-                }
-            })
+        self.frequent.get(k).or_else(|| {
+            self.recent
+                .peek(k)
+                .and_then(|v| self.move_to_frequent(k, v))
+        })
     }
 
     /// Returns a mutable reference to the value of the key in the cache or `None` if it
@@ -598,7 +575,7 @@ impl<K: Hash + Eq, V, RH: BuildHasher, FH: BuildHasher, GH: BuildHasher>
     /// # Example
     ///
     /// ```
-    /// use caches::TwoQueueCache;
+    /// use caches::{Cache, TwoQueueCache};
     /// let mut cache = TwoQueueCache::new(2).unwrap();
     ///
     /// cache.put("apple", 8);
@@ -610,21 +587,17 @@ impl<K: Hash + Eq, V, RH: BuildHasher, FH: BuildHasher, GH: BuildHasher>
     /// assert_eq!(cache.get_mut(&"banana"), Some(&mut 6));
     /// assert_eq!(cache.get_mut(&"pear"), Some(&mut 2));
     /// ```
-    pub fn get_mut<'a, Q>(&'a mut self, k: &'a Q) -> Option<&'a mut V>
+    fn get_mut<'a, Q>(&mut self, k: &'a Q) -> Option<&'a mut V>
     where
         KeyRef<K>: Borrow<Q>,
         Q: Hash + Eq + ?Sized,
     {
         // Check if this is a frequent value
-        self.frequent
-            .get_mut(k)
-            .or_else(|| match self.recent.remove_and_return_ent(k) {
-                None => None,
-                Some(ent) => {
-                    let _ = self.frequent.put_box(ent);
-                    self.frequent.peek_mut(k)
-                }
-            })
+        self.frequent.get_mut(k).or_else(|| {
+            self.recent
+                .peek_mut(k)
+                .and_then(|v| self.move_to_frequent(k, v))
+        })
     }
 
     /// Returns a reference to the value corresponding to the key in the cache or `None` if it is
@@ -634,7 +607,7 @@ impl<K: Hash + Eq, V, RH: BuildHasher, FH: BuildHasher, GH: BuildHasher>
     /// # Example
     ///
     /// ```
-    /// use caches::TwoQueueCache;
+    /// use caches::{Cache, TwoQueueCache};
     /// let mut cache = TwoQueueCache::new(2).unwrap();
     ///
     /// cache.put(1, "a");
@@ -643,7 +616,7 @@ impl<K: Hash + Eq, V, RH: BuildHasher, FH: BuildHasher, GH: BuildHasher>
     /// assert_eq!(cache.peek(&1), Some(&"a"));
     /// assert_eq!(cache.peek(&2), Some(&"b"));
     /// ```
-    pub fn peek<'a, Q>(&'a self, k: &'a Q) -> Option<&'a V>
+    fn peek<'a, Q>(&self, k: &'a Q) -> Option<&'a V>
     where
         KeyRef<K>: Borrow<Q>,
         Q: Hash + Eq + ?Sized,
@@ -658,7 +631,7 @@ impl<K: Hash + Eq, V, RH: BuildHasher, FH: BuildHasher, GH: BuildHasher>
     /// # Example
     ///
     /// ```
-    /// use caches::TwoQueueCache;
+    /// use caches::{Cache, TwoQueueCache};
     /// let mut cache = TwoQueueCache::new(2).unwrap();
     ///
     /// cache.put(1, "a");
@@ -667,7 +640,7 @@ impl<K: Hash + Eq, V, RH: BuildHasher, FH: BuildHasher, GH: BuildHasher>
     /// assert_eq!(cache.peek_mut(&1), Some(&mut "a"));
     /// assert_eq!(cache.peek_mut(&2), Some(&mut "b"));
     /// ```
-    pub fn peek_mut<'a, Q>(&'a mut self, k: &'a Q) -> Option<&'a mut V>
+    fn peek_mut<'a, Q>(&mut self, k: &'a Q) -> Option<&'a mut V>
     where
         KeyRef<K>: Borrow<Q>,
         Q: Hash + Eq + ?Sized,
@@ -683,7 +656,7 @@ impl<K: Hash + Eq, V, RH: BuildHasher, FH: BuildHasher, GH: BuildHasher>
     /// # Example
     ///
     /// ```
-    /// use caches::TwoQueueCache;
+    /// use caches::{Cache, TwoQueueCache};
     /// let mut cache = TwoQueueCache::new(2).unwrap();
     ///
     /// cache.put(2, "a");
@@ -693,7 +666,7 @@ impl<K: Hash + Eq, V, RH: BuildHasher, FH: BuildHasher, GH: BuildHasher>
     /// assert_eq!(cache.remove(&2), None);
     /// assert_eq!(cache.len(), 0);
     /// ```
-    pub fn remove<Q>(&mut self, k: &Q) -> Option<V>
+    fn remove<Q>(&mut self, k: &Q) -> Option<V>
     where
         KeyRef<K>: Borrow<Q>,
         Q: Hash + Eq + ?Sized,
@@ -710,7 +683,7 @@ impl<K: Hash + Eq, V, RH: BuildHasher, FH: BuildHasher, GH: BuildHasher>
     /// # Example
     ///
     /// ```
-    /// use caches::TwoQueueCache;
+    /// use caches::{Cache, TwoQueueCache};
     /// let mut cache = TwoQueueCache::new(2).unwrap();
     ///
     /// cache.put(1, "a");
@@ -721,7 +694,7 @@ impl<K: Hash + Eq, V, RH: BuildHasher, FH: BuildHasher, GH: BuildHasher>
     /// assert!(cache.contains(&2));
     /// assert!(cache.contains(&3));
     /// ```
-    pub fn contains<Q>(&self, k: &Q) -> bool
+    fn contains<Q>(&self, k: &Q) -> bool
     where
         KeyRef<K>: Borrow<Q>,
         Q: Hash + Eq + ?Sized,
@@ -734,7 +707,7 @@ impl<K: Hash + Eq, V, RH: BuildHasher, FH: BuildHasher, GH: BuildHasher>
     /// # Example
     ///
     /// ```
-    /// use caches::TwoQueueCache;
+    /// use caches::{Cache, TwoQueueCache};
     /// let mut cache: TwoQueueCache<isize, &str> = TwoQueueCache::new(2).unwrap();
     /// assert_eq!(cache.len(), 0);
     ///
@@ -747,7 +720,7 @@ impl<K: Hash + Eq, V, RH: BuildHasher, FH: BuildHasher, GH: BuildHasher>
     /// cache.purge();
     /// assert_eq!(cache.len(), 0);
     /// ```
-    pub fn purge(&mut self) {
+    fn purge(&mut self) {
         self.frequent.purge();
         self.recent.purge();
         self.ghost.purge();
@@ -759,7 +732,7 @@ impl<K: Hash + Eq, V, RH: BuildHasher, FH: BuildHasher, GH: BuildHasher>
     /// # Example
     ///
     /// ```
-    /// use caches::TwoQueueCache;
+    /// use caches::{Cache, TwoQueueCache};
     /// let mut cache = TwoQueueCache::new(2).unwrap();
     /// assert_eq!(cache.len(), 0);
     ///
@@ -772,8 +745,55 @@ impl<K: Hash + Eq, V, RH: BuildHasher, FH: BuildHasher, GH: BuildHasher>
     /// cache.put(3, "c");
     /// assert_eq!(cache.len(), 2);
     /// ```
-    pub fn len(&self) -> usize {
+    fn len(&self) -> usize {
         self.recent.len() + self.frequent.len()
+    }
+
+    /// Returns the maximum number of key-value pairs the cache can hold
+    /// (excluding the capacity of inner ghost LRU).
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use caches::{Cache, TwoQueueCache};
+    /// let mut cache: TwoQueueCache<isize, &str> = TwoQueueCache::new(2).unwrap();
+    /// assert_eq!(cache.cap(), 2);
+    /// ```
+    fn cap(&self) -> usize {
+        self.size
+    }
+
+    fn is_empty(&self) -> bool {
+        self.frequent.is_empty() && self.recent.is_empty() && self.ghost.is_empty()
+    }
+}
+
+impl<K: Hash + Eq, V, RH: BuildHasher, FH: BuildHasher, GH: BuildHasher>
+    TwoQueueCache<K, V, RH, FH, GH>
+{
+    /// Create a [`TwoQueueCache`] from [`TwoQueueCacheBuilder`].
+    ///
+    /// # Example
+    /// ```rust
+    /// use caches::{TwoQueueCacheBuilder, TwoQueueCache, Cache};
+    /// use rustc_hash::FxHasher;
+    /// use std::hash::BuildHasherDefault;
+    ///
+    /// let builder = TwoQueueCacheBuilder::new(5)
+    ///     .set_recent_ratio(0.3)
+    ///     .set_ghost_ratio(0.4)
+    ///     .set_recent_hasher(BuildHasherDefault::<FxHasher>::default())
+    ///     .set_frequent_hasher(BuildHasherDefault::<FxHasher>::default())
+    ///     .set_ghost_hasher(BuildHasherDefault::<FxHasher>::default());
+    ///
+    /// let mut cache = TwoQueueCache::from_builder(builder).unwrap();
+    /// cache.put(1, 1);
+    /// ```
+    ///
+    /// [`TwoQueueCacheBuilder`]: struct.TwoQueueCacheBuilder.html
+    /// [`TwoQueueCache`]: struct.TwoQueueCache.html
+    pub fn from_builder(builder: TwoQueueCacheBuilder<RH, FH, GH>) -> Result<Self, CacheError> {
+        builder.finalize()
     }
 
     /// Returns the number of key-value pairs that are currently in the the recent LRU.
@@ -791,27 +811,13 @@ impl<K: Hash + Eq, V, RH: BuildHasher, FH: BuildHasher, GH: BuildHasher>
         self.ghost.len()
     }
 
-    /// Returns the maximum number of key-value pairs the cache can hold
-    /// (excluding the capacity of inner ghost LRU).
-    ///
-    /// # Example
-    ///
-    /// ```
-    /// use caches::TwoQueueCache;
-    /// let mut cache: TwoQueueCache<isize, &str> = TwoQueueCache::new(2).unwrap();
-    /// assert_eq!(cache.cap(), 2);
-    /// ```
-    pub fn cap(&self) -> usize {
-        self.size
-    }
-
     /// An iterator visiting all keys of recent LRU in most-recently used order. The iterator element type is
     /// `&'a K`.
     ///
     /// # Examples
     ///
     /// ```
-    /// use caches::TwoQueueCache;
+    /// use caches::{Cache, TwoQueueCache};
     ///
     /// let mut cache = TwoQueueCache::new(3).unwrap();
     /// cache.put("a", 1);
@@ -832,7 +838,7 @@ impl<K: Hash + Eq, V, RH: BuildHasher, FH: BuildHasher, GH: BuildHasher>
     /// # Examples
     ///
     /// ```
-    /// use caches::TwoQueueCache;
+    /// use caches::{Cache, TwoQueueCache};
     ///
     /// let mut cache = TwoQueueCache::new(3).unwrap();
     /// cache.put("a", 1);
@@ -853,7 +859,7 @@ impl<K: Hash + Eq, V, RH: BuildHasher, FH: BuildHasher, GH: BuildHasher>
     /// # Examples
     ///
     /// ```
-    /// use caches::TwoQueueCache;
+    /// use caches::{Cache, TwoQueueCache};
     ///
     /// let mut cache = TwoQueueCache::new(3).unwrap();
     /// cache.put("a", 1);
@@ -874,7 +880,7 @@ impl<K: Hash + Eq, V, RH: BuildHasher, FH: BuildHasher, GH: BuildHasher>
     /// # Examples
     ///
     /// ```
-    /// use caches::TwoQueueCache;
+    /// use caches::{Cache, TwoQueueCache};
     ///
     /// let mut cache = TwoQueueCache::new(3).unwrap();
     /// cache.put("a", 1);
@@ -895,7 +901,7 @@ impl<K: Hash + Eq, V, RH: BuildHasher, FH: BuildHasher, GH: BuildHasher>
     /// # Examples
     ///
     /// ```
-    /// use caches::TwoQueueCache;
+    /// use caches::{Cache, TwoQueueCache};
     ///
     /// let mut cache = TwoQueueCache::new(3).unwrap();
     /// cache.put("a", 1);
@@ -916,7 +922,7 @@ impl<K: Hash + Eq, V, RH: BuildHasher, FH: BuildHasher, GH: BuildHasher>
     /// # Examples
     ///
     /// ```
-    /// use caches::TwoQueueCache;
+    /// use caches::{Cache, TwoQueueCache};
     ///
     /// let mut cache = TwoQueueCache::new(3).unwrap();
     /// cache.put("a", 1);
@@ -937,7 +943,7 @@ impl<K: Hash + Eq, V, RH: BuildHasher, FH: BuildHasher, GH: BuildHasher>
     /// # Examples
     ///
     /// ```
-    /// use caches::TwoQueueCache;
+    /// use caches::{Cache, TwoQueueCache};
     ///
     /// let mut cache = TwoQueueCache::new(3).unwrap();
     /// cache.put("a", 1);
@@ -958,7 +964,7 @@ impl<K: Hash + Eq, V, RH: BuildHasher, FH: BuildHasher, GH: BuildHasher>
     /// # Examples
     ///
     /// ```
-    /// use caches::TwoQueueCache;
+    /// use caches::{Cache, TwoQueueCache};
     ///
     /// let mut cache = TwoQueueCache::new(3).unwrap();
     /// cache.put("a", 1);
@@ -979,7 +985,7 @@ impl<K: Hash + Eq, V, RH: BuildHasher, FH: BuildHasher, GH: BuildHasher>
     /// # Examples
     ///
     /// ```
-    /// use caches::TwoQueueCache;
+    /// use caches::{Cache, TwoQueueCache};
     ///
     /// struct HddBlock {
     ///     idx: u64,
@@ -1015,7 +1021,7 @@ impl<K: Hash + Eq, V, RH: BuildHasher, FH: BuildHasher, GH: BuildHasher>
     /// # Examples
     ///
     /// ```
-    /// use caches::TwoQueueCache;
+    /// use caches::{Cache, TwoQueueCache};
     ///
     /// struct HddBlock {
     ///     idx: u64,
@@ -1057,7 +1063,7 @@ impl<K: Hash + Eq, V, RH: BuildHasher, FH: BuildHasher, GH: BuildHasher>
     /// # Examples
     ///
     /// ```
-    /// use caches::TwoQueueCache;
+    /// use caches::{Cache, TwoQueueCache};
     ///
     /// let mut cache = TwoQueueCache::new(3).unwrap();
     /// cache.put("a", 1);
@@ -1078,7 +1084,7 @@ impl<K: Hash + Eq, V, RH: BuildHasher, FH: BuildHasher, GH: BuildHasher>
     /// # Examples
     ///
     /// ```
-    /// use caches::TwoQueueCache;
+    /// use caches::{Cache, TwoQueueCache};
     ///
     /// let mut cache = TwoQueueCache::new(3).unwrap();
     /// cache.put("a", 1);
@@ -1099,7 +1105,7 @@ impl<K: Hash + Eq, V, RH: BuildHasher, FH: BuildHasher, GH: BuildHasher>
     /// # Examples
     ///
     /// ```
-    /// use caches::TwoQueueCache;
+    /// use caches::{Cache, TwoQueueCache};
     ///
     /// let mut cache = TwoQueueCache::new(3).unwrap();
     /// cache.put("a", 1);
@@ -1120,7 +1126,7 @@ impl<K: Hash + Eq, V, RH: BuildHasher, FH: BuildHasher, GH: BuildHasher>
     /// # Examples
     ///
     /// ```
-    /// use caches::TwoQueueCache;
+    /// use caches::{Cache, TwoQueueCache};
     ///
     /// let mut cache = TwoQueueCache::new(3).unwrap();
     /// cache.put("a", 1);
@@ -1141,7 +1147,7 @@ impl<K: Hash + Eq, V, RH: BuildHasher, FH: BuildHasher, GH: BuildHasher>
     /// # Examples
     ///
     /// ```
-    /// use caches::TwoQueueCache;
+    /// use caches::{Cache, TwoQueueCache};
     ///
     /// let mut cache = TwoQueueCache::new(3).unwrap();
     /// cache.put("a", 1);
@@ -1162,7 +1168,7 @@ impl<K: Hash + Eq, V, RH: BuildHasher, FH: BuildHasher, GH: BuildHasher>
     /// # Examples
     ///
     /// ```
-    /// use caches::TwoQueueCache;
+    /// use caches::{Cache, TwoQueueCache};
     ///
     /// let mut cache = TwoQueueCache::new(3).unwrap();
     /// cache.put("a", 1);
@@ -1183,7 +1189,7 @@ impl<K: Hash + Eq, V, RH: BuildHasher, FH: BuildHasher, GH: BuildHasher>
     /// # Examples
     ///
     /// ```
-    /// use caches::TwoQueueCache;
+    /// use caches::{Cache, TwoQueueCache};
     ///
     /// let mut cache = TwoQueueCache::new(3).unwrap();
     /// cache.put("a", 1);
@@ -1204,7 +1210,7 @@ impl<K: Hash + Eq, V, RH: BuildHasher, FH: BuildHasher, GH: BuildHasher>
     /// # Examples
     ///
     /// ```
-    /// use caches::TwoQueueCache;
+    /// use caches::{Cache, TwoQueueCache};
     ///
     /// let mut cache = TwoQueueCache::new(3).unwrap();
     /// cache.put("a", 1);
@@ -1225,7 +1231,7 @@ impl<K: Hash + Eq, V, RH: BuildHasher, FH: BuildHasher, GH: BuildHasher>
     /// # Examples
     ///
     /// ```
-    /// use caches::TwoQueueCache;
+    /// use caches::{Cache, TwoQueueCache};
     ///
     /// struct HddBlock {
     ///     idx: u64,
@@ -1266,7 +1272,7 @@ impl<K: Hash + Eq, V, RH: BuildHasher, FH: BuildHasher, GH: BuildHasher>
     /// # Examples
     ///
     /// ```
-    /// use caches::TwoQueueCache;
+    /// use caches::{Cache, TwoQueueCache};
     ///
     /// struct HddBlock {
     ///     idx: u64,
@@ -1308,7 +1314,7 @@ impl<K: Hash + Eq, V, RH: BuildHasher, FH: BuildHasher, GH: BuildHasher>
     /// # Examples
     ///
     /// ```
-    /// use caches::TwoQueueCache;
+    /// use caches::{Cache, TwoQueueCache};
     ///
     /// let mut cache = TwoQueueCache::new(3).unwrap();
     /// cache.put("a", 1);
@@ -1329,7 +1335,7 @@ impl<K: Hash + Eq, V, RH: BuildHasher, FH: BuildHasher, GH: BuildHasher>
     /// # Examples
     ///
     /// ```
-    /// use caches::TwoQueueCache;
+    /// use caches::{Cache, TwoQueueCache};
     ///
     /// let mut cache = TwoQueueCache::new(3).unwrap();
     /// cache.put("a", 1);
@@ -1350,7 +1356,7 @@ impl<K: Hash + Eq, V, RH: BuildHasher, FH: BuildHasher, GH: BuildHasher>
     /// # Examples
     ///
     /// ```
-    /// use caches::TwoQueueCache;
+    /// use caches::{Cache, TwoQueueCache};
     ///
     /// let mut cache = TwoQueueCache::new(3).unwrap();
     /// cache.put("a", 1);
@@ -1371,7 +1377,7 @@ impl<K: Hash + Eq, V, RH: BuildHasher, FH: BuildHasher, GH: BuildHasher>
     /// # Examples
     ///
     /// ```
-    /// use caches::TwoQueueCache;
+    /// use caches::{Cache, TwoQueueCache};
     ///
     /// let mut cache = TwoQueueCache::new(3).unwrap();
     /// cache.put("a", 1);
@@ -1392,7 +1398,7 @@ impl<K: Hash + Eq, V, RH: BuildHasher, FH: BuildHasher, GH: BuildHasher>
     /// # Examples
     ///
     /// ```
-    /// use caches::TwoQueueCache;
+    /// use caches::{Cache, TwoQueueCache};
     ///
     /// let mut cache = TwoQueueCache::new(3).unwrap();
     /// cache.put("a", 1);
@@ -1413,7 +1419,7 @@ impl<K: Hash + Eq, V, RH: BuildHasher, FH: BuildHasher, GH: BuildHasher>
     /// # Examples
     ///
     /// ```
-    /// use caches::TwoQueueCache;
+    /// use caches::{Cache, TwoQueueCache};
     ///
     /// let mut cache = TwoQueueCache::new(3).unwrap();
     /// cache.put("a", 1);
@@ -1434,7 +1440,7 @@ impl<K: Hash + Eq, V, RH: BuildHasher, FH: BuildHasher, GH: BuildHasher>
     /// # Examples
     ///
     /// ```
-    /// use caches::TwoQueueCache;
+    /// use caches::{Cache, TwoQueueCache};
     ///
     /// let mut cache = TwoQueueCache::new(3).unwrap();
     /// cache.put("a", 1);
@@ -1455,7 +1461,7 @@ impl<K: Hash + Eq, V, RH: BuildHasher, FH: BuildHasher, GH: BuildHasher>
     /// # Examples
     ///
     /// ```
-    /// use caches::TwoQueueCache;
+    /// use caches::{Cache, TwoQueueCache};
     ///
     /// let mut cache = TwoQueueCache::new(3).unwrap();
     /// cache.put("a", 1);
@@ -1476,7 +1482,7 @@ impl<K: Hash + Eq, V, RH: BuildHasher, FH: BuildHasher, GH: BuildHasher>
     /// # Examples
     ///
     /// ```
-    /// use caches::TwoQueueCache;
+    /// use caches::{Cache, TwoQueueCache};
     ///
     /// struct HddBlock {
     ///     idx: u64,
@@ -1485,17 +1491,17 @@ impl<K: Hash + Eq, V, RH: BuildHasher, FH: BuildHasher, GH: BuildHasher>
     /// }
     ///
     /// let mut cache = TwoQueueCache::new(3).unwrap();
-    /// 
+    ///
     /// // put in recent list
     /// cache.put(0, HddBlock { idx: 0, dirty: false, data: [0x00; 512]});
     /// cache.put(1, HddBlock { idx: 1, dirty: true,  data: [0x55; 512]});
     /// cache.put(2, HddBlock { idx: 2, dirty: true,  data: [0x77; 512]});
-    /// 
+    ///
     /// // upgrade to frequent list
     /// cache.put(0, HddBlock { idx: 0, dirty: false, data: [0x00; 512]});
     /// cache.put(1, HddBlock { idx: 1, dirty: true,  data: [0x55; 512]});
     /// cache.put(2, HddBlock { idx: 2, dirty: true,  data: [0x77; 512]});
-    /// 
+    ///
     /// let mut ctr = 2i32;
     /// // write dirty blocks to disk.
     /// for (block_id, block) in cache.frequent_iter_mut() {
@@ -1517,7 +1523,7 @@ impl<K: Hash + Eq, V, RH: BuildHasher, FH: BuildHasher, GH: BuildHasher>
     /// # Examples
     ///
     /// ```
-    /// use caches::TwoQueueCache;
+    /// use caches::{Cache, TwoQueueCache};
     ///
     /// struct HddBlock {
     ///     idx: u64,
@@ -1538,7 +1544,7 @@ impl<K: Hash + Eq, V, RH: BuildHasher, FH: BuildHasher, GH: BuildHasher>
     /// cache.put(2, HddBlock { idx: 2, dirty: true,  data: [0x77; 512]});
     ///
     /// let mut ctr = 0i32;
-    /// 
+    ///
     /// // write dirty blocks to disk.
     /// for (block_id, block) in cache.frequent_iter_lru_mut() {
     ///     if block.dirty {
@@ -1551,6 +1557,26 @@ impl<K: Hash + Eq, V, RH: BuildHasher, FH: BuildHasher, GH: BuildHasher>
     /// ```
     pub fn frequent_iter_lru_mut(&mut self) -> LRUIterMut<'_, K, V> {
         self.frequent.iter_lru_mut()
+    }
+
+    fn move_to_frequent<T, Q>(&mut self, k: &Q, v: T) -> Option<T>
+    where
+        KeyRef<K>: Borrow<Q>,
+        Q: Hash + Eq + ?Sized,
+    {
+        // remove the element from the recent LRU
+        // and put it in frequent LRU.
+        if let Some(ent) = self.recent.remove_and_return_ent(k) {
+            match self.frequent.put_or_evict_box(ent) {
+                None => Some(v),
+                // the Some branch will not reach, because we remove one from
+                // recent LRU, and add this one to frequent LRU, the total size
+                // of the cache is not changed. We still keep this for good measure.
+                Some(_) => Some(v),
+            }
+        } else {
+            None
+        }
     }
 }
 
@@ -1567,8 +1593,9 @@ impl<K: Hash + Eq, V, RH: BuildHasher, FH: BuildHasher, GH: BuildHasher> fmt::De
 
 #[cfg(test)]
 mod test {
-    use crate::two_queue::TwoQueueCache;
-    use crate::{CacheError, PutResult};
+    use crate::lru::two_queue::TwoQueueCache;
+    use crate::lru::CacheError;
+    use crate::{Cache, PutResult};
     use alloc::vec::Vec;
     use rand::seq::SliceRandom;
     use rand::{thread_rng, Rng};
@@ -1666,13 +1693,13 @@ mod test {
         cache.put(4, 4);
         cache.put(5, 5);
         assert_eq!(cache.recent.len(), 4);
-        assert_eq!(cache.ghost.len(), 1, );
+        assert_eq!(cache.ghost.len(), 1,);
         assert_eq!(cache.frequent.len(), 0);
 
         // Pull in the recently evicted
         assert_eq!(cache.put(1, 1), PutResult::Update(1));
         assert_eq!(cache.recent.len(), 3);
-        assert_eq!(cache.ghost.len(), 1, );
+        assert_eq!(cache.ghost.len(), 1,);
         assert_eq!(cache.frequent.len(), 1);
 
         // Add 6, should cause another recent evict
@@ -1681,13 +1708,13 @@ mod test {
             format!("{:?}", PutResult::<i32, i32>::Put)
         );
         assert_eq!(cache.recent.len(), 3);
-        assert_eq!(cache.ghost.len(), 2, );
+        assert_eq!(cache.ghost.len(), 2,);
         assert_eq!(cache.frequent.len(), 1);
 
         // Add 7, should evict an entry from ghost LRU.
         assert_eq!(cache.put(7, 7), PutResult::Evicted { key: 2, value: 2 });
         assert_eq!(cache.recent.len(), 3);
-        assert_eq!(cache.ghost.len(), 2, );
+        assert_eq!(cache.ghost.len(), 2,);
         assert_eq!(cache.frequent.len(), 1);
 
         // Add 2, should evict an entry from ghost LRU
@@ -1696,19 +1723,19 @@ mod test {
             format!("{:?}", PutResult::Evicted { key: 3, value: 3 })
         );
         assert_eq!(cache.recent.len(), 3);
-        assert_eq!(cache.ghost.len(), 2, );
+        assert_eq!(cache.ghost.len(), 2,);
         assert_eq!(cache.frequent.len(), 1);
 
         // Add 4, should put the entry from ghost LRU to freq LRU
         assert_eq!(cache.put(4, 11), PutResult::Update(4));
         assert_eq!(cache.recent.len(), 2);
-        assert_eq!(cache.ghost.len(), 2, );
+        assert_eq!(cache.ghost.len(), 2,);
         assert_eq!(cache.frequent.len(), 2);
 
         // move all entry in recent to freq.
         assert_eq!(cache.put(2, 22).clone(), PutResult::Update(11));
         assert_eq!(cache.recent.len(), 1);
-        assert_eq!(cache.ghost.len(), 2, );
+        assert_eq!(cache.ghost.len(), 2,);
         assert_eq!(cache.frequent.len(), 3);
 
         assert_eq!(

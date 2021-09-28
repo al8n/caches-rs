@@ -35,8 +35,10 @@ use core::mem;
 use core::ptr;
 use core::usize;
 
+use crate::cache_api::ResizableCache;
+use crate::lru::CacheError;
 use crate::{
-    import_hashbrown, import_std, CacheError, DefaultEvictCallback, DefaultHashBuilder, KeyRef,
+    import_hashbrown, import_std, Cache, DefaultEvictCallback, DefaultHashBuilder, KeyRef,
     OnEvictCallback, PutResult,
 };
 
@@ -85,7 +87,7 @@ fn check_size(size: usize) -> Result<(), CacheError> {
 /// # Example
 /// - Use [`RawLRU`] with default noop callback.
 /// ```rust
-/// use caches::{RawLRU, PutResult};
+/// use caches::{RawLRU, PutResult, Cache};
 ///
 /// let mut cache = RawLRU::new(2).unwrap();
 /// // fill the cache
@@ -109,7 +111,7 @@ fn check_size(size: usize) -> Result<(), CacheError> {
 /// ```rust
 /// use std::sync::Arc;
 /// use std::sync::atomic::{AtomicU64, Ordering};
-/// use caches::{OnEvictCallback, RawLRU, PutResult};
+/// use caches::{OnEvictCallback, RawLRU, PutResult, Cache};
 ///
 /// // EvictedCounter is a callback which is used to record the number of evicted entries.
 /// struct EvictedCounter {
@@ -168,11 +170,17 @@ impl<K: Hash + Eq, V> RawLRU<K, V> {
     /// # Example
     ///
     /// ```
-    /// use caches::RawLRU;
+    /// use caches::{Cache, RawLRU};
     /// let mut cache: RawLRU<isize, &str> = RawLRU::new(10).unwrap();
     /// ```
     pub fn new(cap: usize) -> Result<Self, CacheError> {
-        check_size(cap).map(|_| Self::construct(cap, HashMap::with_capacity(cap), None))
+        check_size(cap).map(|_| {
+            Self::construct(
+                cap,
+                HashMap::with_capacity_and_hasher(cap, DefaultHashBuilder::default()),
+                None,
+            )
+        })
     }
 }
 
@@ -230,7 +238,347 @@ impl<K: Hash + Eq, V, E: OnEvictCallback> RawLRU<K, V, E, DefaultHashBuilder> {
     /// let mut cache: RawLRU<isize, &str, EvictedCounter> = RawLRU::with_on_evict_cb(10, EvictedCounter::default()).unwrap();
     /// ```
     pub fn with_on_evict_cb(cap: usize, cb: E) -> Result<Self, CacheError> {
-        check_size(cap).map(|_| Self::construct(cap, HashMap::with_capacity(cap), Some(cb)))
+        check_size(cap).map(|_| {
+            Self::construct(
+                cap,
+                HashMap::with_capacity_and_hasher(cap, DefaultHashBuilder::default()),
+                Some(cb),
+            )
+        })
+    }
+}
+
+impl<K: Hash + Eq, V, E: OnEvictCallback, S: BuildHasher> Cache<K, V> for RawLRU<K, V, E, S> {
+    /// Puts a key-value pair into cache, returns a [`PutResult`].
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use caches::{RawLRU, PutResult, Cache};
+    /// let mut cache = RawLRU::new(2).unwrap();
+    ///
+    /// assert_eq!(PutResult::Put, cache.put(1, "a"));
+    /// assert_eq!(PutResult::Put, cache.put(2, "b"));
+    /// assert_eq!(PutResult::Update("b"), cache.put(2, "beta"));
+    /// assert_eq!(PutResult::Evicted{ key: 1, value: "a"}, cache.put(3, "c"));
+    ///
+    /// assert_eq!(cache.get(&1), None);
+    /// assert_eq!(cache.get(&2), Some(&"beta"));
+    /// ```
+    ///
+    /// [`PutResult`]: struct.PutResult.html
+    fn put(&mut self, k: K, mut v: V) -> PutResult<K, V> {
+        let node_ptr = self.map.get_mut(&KeyRef { k: &k }).map(|node| {
+            let node_ptr: *mut EntryNode<K, V> = &mut **node;
+            node_ptr
+        });
+
+        match node_ptr {
+            Some(node_ptr) => {
+                self.update(&mut v, node_ptr);
+                PutResult::Update(v)
+            }
+            None => self.put_in(k, v),
+        }
+    }
+
+    /// Returns a reference to the value of the key in the cache or `None` if it is not
+    /// present in the cache. Moves the key to the head of the LRU list if it exists.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use caches::{Cache, RawLRU};
+    /// let mut cache = RawLRU::new(2).unwrap();
+    ///
+    /// cache.put(1, "a");
+    /// cache.put(2, "b");
+    /// cache.put(2, "c");
+    /// cache.put(3, "d");
+    ///
+    /// assert_eq!(cache.get(&1), None);
+    /// assert_eq!(cache.get(&2), Some(&"c"));
+    /// assert_eq!(cache.get(&3), Some(&"d"));
+    /// ```
+    fn get<'a, Q>(&'_ mut self, k: &'a Q) -> Option<&'a V>
+    where
+        KeyRef<K>: Borrow<Q>,
+        Q: Hash + Eq + ?Sized,
+    {
+        if let Some(node) = self.map.get_mut(k) {
+            let node_ptr: *mut EntryNode<K, V> = &mut **node;
+
+            self.detach(node_ptr);
+            self.attach(node_ptr);
+
+            Some(unsafe { &(*(*node_ptr).val.as_ptr()) as &V })
+        } else {
+            None
+        }
+    }
+
+    /// Returns a mutable reference to the value of the key in the cache or `None` if it
+    /// is not present in the cache. Moves the key to the head of the LRU list if it exists.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use caches::{Cache, RawLRU};
+    /// let mut cache = RawLRU::new(2).unwrap();
+    ///
+    /// cache.put("apple", 8);
+    /// cache.put("banana", 4);
+    /// cache.put("banana", 6);
+    /// cache.put("pear", 2);
+    ///
+    /// assert_eq!(cache.get_mut(&"apple"), None);
+    /// assert_eq!(cache.get_mut(&"banana"), Some(&mut 6));
+    /// assert_eq!(cache.get_mut(&"pear"), Some(&mut 2));
+    /// ```
+    fn get_mut<'a, Q>(&'_ mut self, k: &'a Q) -> Option<&'a mut V>
+    where
+        KeyRef<K>: Borrow<Q>,
+        Q: Hash + Eq + ?Sized,
+    {
+        if let Some(node) = self.map.get_mut(k) {
+            let node_ptr: *mut EntryNode<K, V> = &mut **node;
+
+            self.detach(node_ptr);
+            self.attach(node_ptr);
+
+            Some(unsafe { &mut (*(*node_ptr).val.as_mut_ptr()) as &mut V })
+        } else {
+            None
+        }
+    }
+
+    /// Returns a reference to the value corresponding to the key in the cache or `None` if it is
+    /// not present in the cache. Unlike `get`, `peek` does not update the LRU list so the key's
+    /// position will be unchanged.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use caches::{Cache, RawLRU};
+    /// let mut cache = RawLRU::new(2).unwrap();
+    ///
+    /// cache.put(1, "a");
+    /// cache.put(2, "b");
+    ///
+    /// assert_eq!(cache.peek(&1), Some(&"a"));
+    /// assert_eq!(cache.peek(&2), Some(&"b"));
+    /// ```
+    fn peek<'a, Q>(&'_ self, k: &'a Q) -> Option<&'a V>
+    where
+        KeyRef<K>: Borrow<Q>,
+        Q: Hash + Eq + ?Sized,
+    {
+        self.map
+            .get(k)
+            .map(|node| unsafe { &(*(*node).val.as_ptr()) as &V })
+    }
+
+    /// Returns a mutable reference to the value corresponding to the key in the cache or `None`
+    /// if it is not present in the cache. Unlike `get_mut`, `peek_mut` does not update the LRU
+    /// list so the key's position will be unchanged.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use caches::{Cache, RawLRU};
+    /// let mut cache = RawLRU::new(2).unwrap();
+    ///
+    /// cache.put(1, "a");
+    /// cache.put(2, "b");
+    ///
+    /// assert_eq!(cache.peek_mut(&1), Some(&mut "a"));
+    /// assert_eq!(cache.peek_mut(&2), Some(&mut "b"));
+    /// ```
+    fn peek_mut<'a, Q>(&'_ mut self, k: &'a Q) -> Option<&'a mut V>
+    where
+        KeyRef<K>: Borrow<Q>,
+        Q: Hash + Eq + ?Sized,
+    {
+        match self.map.get_mut(k) {
+            None => None,
+            Some(node) => Some(unsafe { &mut (*(*node).val.as_mut_ptr()) as &mut V }),
+        }
+    }
+
+    /// Returns a bool indicating whether the given key is in the cache. Does not update the
+    /// LRU list.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use caches::{Cache, RawLRU};
+    /// let mut cache = RawLRU::new(2).unwrap();
+    ///
+    /// cache.put(1, "a");
+    /// cache.put(2, "b");
+    /// cache.put(3, "c");
+    ///
+    /// assert!(!cache.contains(&1));
+    /// assert!(cache.contains(&2));
+    /// assert!(cache.contains(&3));
+    /// ```
+    #[inline]
+    fn contains<Q>(&self, k: &Q) -> bool
+    where
+        KeyRef<K>: Borrow<Q>,
+        Q: Hash + Eq + ?Sized,
+    {
+        self.map.contains_key(k)
+    }
+
+    /// Removes and returns the value corresponding to the key from the cache or
+    /// `None` if it does not exist.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use caches::{Cache, RawLRU};
+    /// let mut cache = RawLRU::new(2).unwrap();
+    ///
+    /// cache.put(2, "a");
+    ///
+    /// assert_eq!(cache.remove(&1), None);
+    /// assert_eq!(cache.remove(&2), Some("a"));
+    /// assert_eq!(cache.remove(&2), None);
+    /// assert_eq!(cache.len(), 0);
+    /// ```
+    fn remove<Q>(&mut self, k: &Q) -> Option<V>
+    where
+        KeyRef<K>: Borrow<Q>,
+        Q: Hash + Eq + ?Sized,
+    {
+        match self.map.remove(k) {
+            None => None,
+            Some(mut old_node) => {
+                let node_ptr: *mut EntryNode<K, V> = &mut *old_node;
+                self.detach(node_ptr);
+                unsafe {
+                    let val = old_node.val.assume_init();
+                    self.cb(&*old_node.key.as_ptr(), &val);
+                    ptr::drop_in_place(old_node.key.as_mut_ptr());
+                    Some(val)
+                }
+            }
+        }
+    }
+
+    /// Clears the contents of the cache.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use caches::{Cache, RawLRU};
+    /// let mut cache: RawLRU<isize, &str> = RawLRU::new(2).unwrap();
+    /// assert_eq!(cache.len(), 0);
+    ///
+    /// cache.put(1, "a");
+    /// assert_eq!(cache.len(), 1);
+    ///
+    /// cache.put(2, "b");
+    /// assert_eq!(cache.len(), 2);
+    ///
+    /// cache.purge();
+    /// assert_eq!(cache.len(), 0);
+    /// ```
+    fn purge(&mut self) {
+        while self.remove_lru().is_some() {}
+    }
+
+    /// Returns the number of key-value pairs that are currently in the the cache.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use caches::{Cache, RawLRU};
+    /// let mut cache = RawLRU::new(2).unwrap();
+    /// assert_eq!(cache.len(), 0);
+    ///
+    /// cache.put(1, "a");
+    /// assert_eq!(cache.len(), 1);
+    ///
+    /// cache.put(2, "b");
+    /// assert_eq!(cache.len(), 2);
+    ///
+    /// cache.put(3, "c");
+    /// assert_eq!(cache.len(), 2);
+    /// ```
+    fn len(&self) -> usize {
+        self.map.len()
+    }
+
+    /// Returns the maximum number of key-value pairs the cache can hold.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use caches::{Cache, RawLRU};
+    /// let mut cache: RawLRU<isize, &str> = RawLRU::new(2).unwrap();
+    /// assert_eq!(cache.cap(), 2);
+    /// ```
+    fn cap(&self) -> usize {
+        self.cap
+    }
+
+    /// Returns a bool indicating whether the cache is empty or not.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use caches::{Cache, RawLRU};
+    /// let mut cache = RawLRU::new(2).unwrap();
+    /// assert!(cache.is_empty());
+    ///
+    /// cache.put(1, "a");
+    /// assert!(!cache.is_empty());
+    /// ```
+    #[inline]
+    fn is_empty(&self) -> bool {
+        self.map.len() == 0
+    }
+}
+
+impl<K: Hash + Eq, V, E: OnEvictCallback, S: BuildHasher> ResizableCache for RawLRU<K, V, E, S> {
+    /// Resizes the cache. If the new capacity is smaller than the size of the current
+    /// cache any entries past the new capacity are discarded.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use caches::{Cache, RawLRU, ResizableCache};
+    /// let mut cache: RawLRU<isize, &str> = RawLRU::new(2).unwrap();
+    ///
+    /// cache.put(1, "a");
+    /// cache.put(2, "b");
+    /// cache.resize(4);
+    /// cache.put(3, "c");
+    /// cache.put(4, "d");
+    ///
+    /// assert_eq!(cache.len(), 4);
+    /// assert_eq!(cache.get(&1), Some(&"a"));
+    /// assert_eq!(cache.get(&2), Some(&"b"));
+    /// assert_eq!(cache.get(&3), Some(&"c"));
+    /// assert_eq!(cache.get(&4), Some(&"d"));
+    /// ```
+    fn resize(&mut self, cap: usize) -> u64 {
+        let mut evicted = 0u64;
+        // return early if capacity doesn't change
+        if cap == self.cap {
+            return evicted;
+        }
+
+        while self.map.len() > cap {
+            self.remove_lru();
+            evicted += 1;
+        }
+        self.map.shrink_to_fit();
+
+        self.cap = cap;
+        evicted
     }
 }
 
@@ -298,81 +646,12 @@ impl<K: Hash + Eq, V, E: OnEvictCallback, S: BuildHasher> RawLRU<K, V, E, S> {
         cache
     }
 
-    /// Puts a key-value pair into cache, returns a [`PutResult`].
+    /// Returns the least recent used entry(&K, &V) in the cache or `None` if the cache is empty.
     ///
     /// # Example
     ///
     /// ```
-    /// use caches::{RawLRU, PutResult};
-    /// let mut cache = RawLRU::new(2).unwrap();
-    ///
-    /// assert_eq!(PutResult::Put, cache.put(1, "a"));
-    /// assert_eq!(PutResult::Put, cache.put(2, "b"));
-    /// assert_eq!(PutResult::Update("b"), cache.put(2, "beta"));
-    /// assert_eq!(PutResult::Evicted{ key: 1, value: "a"}, cache.put(3, "c"));
-    ///
-    /// assert_eq!(cache.get(&1), None);
-    /// assert_eq!(cache.get(&2), Some(&"beta"));
-    /// ```
-    ///
-    /// [`PutResult`]: struct.PutResult.html
-    pub fn put(&mut self, k: K, mut v: V) -> PutResult<K, V> {
-        let node_ptr = self.map.get_mut(&KeyRef { k: &k }).map(|node| {
-            let node_ptr: *mut EntryNode<K, V> = &mut **node;
-            node_ptr
-        });
-
-        match node_ptr {
-            Some(node_ptr) => {
-                self.update(&mut v, node_ptr);
-                PutResult::Update(v)
-            }
-            None => self.put_in(k, v),
-        }
-    }
-
-    /// Returns a reference to the value of the key in the cache or `None` if it is not
-    /// present in the cache. Moves the key to the head of the LRU list if it exists.
-    ///
-    /// # Example
-    ///
-    /// ```
-    /// use caches::RawLRU;
-    /// let mut cache = RawLRU::new(2).unwrap();
-    ///
-    /// cache.put(1, "a");
-    /// cache.put(2, "b");
-    /// cache.put(2, "c");
-    /// cache.put(3, "d");
-    ///
-    /// assert_eq!(cache.get(&1), None);
-    /// assert_eq!(cache.get(&2), Some(&"c"));
-    /// assert_eq!(cache.get(&3), Some(&"d"));
-    /// ```
-    pub fn get<'a, Q>(&'_ mut self, k: &'a Q) -> Option<&'a V>
-    where
-        KeyRef<K>: Borrow<Q>,
-        Q: Hash + Eq + ?Sized,
-    {
-        if let Some(node) = self.map.get_mut(k) {
-            let node_ptr: *mut EntryNode<K, V> = &mut **node;
-
-            self.detach(node_ptr);
-            self.attach(node_ptr);
-
-            Some(unsafe { &(*(*node_ptr).val.as_ptr()) as &V })
-        } else {
-            None
-        }
-    }
-
-    /// Returns a mutable reference to the value of the key in the cache or `None` if it
-    /// is not present in the cache. Moves the key to the head of the LRU list if it exists.
-    ///
-    /// # Example
-    ///
-    /// ```
-    /// use caches::RawLRU;
+    /// use caches::{Cache, RawLRU};
     /// let mut cache = RawLRU::new(2).unwrap();
     ///
     /// cache.put("apple", 8);
@@ -380,7 +659,7 @@ impl<K: Hash + Eq, V, E: OnEvictCallback, S: BuildHasher> RawLRU<K, V, E, S> {
     /// cache.put("banana", 6);
     /// cache.put("pear", 2);
     ///
-    /// assert_eq!(cache.get(&"banana"), Some(&6));
+    /// assert_eq!(cache.get_lru(), Some((&"banana", &6)));
     /// ```
     pub fn get_lru(&mut self) -> Option<(&K, &V)> {
         if self.is_empty() {
@@ -398,13 +677,12 @@ impl<K: Hash + Eq, V, E: OnEvictCallback, S: BuildHasher> RawLRU<K, V, E, S> {
         }
     }
 
-    /// Returns a mutable reference to the value of the key in the cache or `None` if it
-    /// is not present in the cache. Moves the key to the head of the LRU list if it exists.
+    /// Returns the most recent used entry(&K, &V) in the cache or `None` if the cache is empty.
     ///
     /// # Example
     ///
     /// ```
-    /// use caches::RawLRU;
+    /// use caches::{Cache, RawLRU};
     /// let mut cache = RawLRU::new(2).unwrap();
     ///
     /// cache.put("apple", 8);
@@ -412,34 +690,28 @@ impl<K: Hash + Eq, V, E: OnEvictCallback, S: BuildHasher> RawLRU<K, V, E, S> {
     /// cache.put("banana", 6);
     /// cache.put("pear", 2);
     ///
-    /// assert_eq!(cache.get_mut(&"apple"), None);
-    /// assert_eq!(cache.get_mut(&"banana"), Some(&mut 6));
-    /// assert_eq!(cache.get_mut(&"pear"), Some(&mut 2));
+    /// assert_eq!(cache.get_mru(), Some((&"pear", &2)));
     /// ```
-    pub fn get_mut<'a, Q>(&'_ mut self, k: &'a Q) -> Option<&'a mut V>
-    where
-        KeyRef<K>: Borrow<Q>,
-        Q: Hash + Eq + ?Sized,
-    {
-        if let Some(node) = self.map.get_mut(k) {
-            let node_ptr: *mut EntryNode<K, V> = &mut **node;
+    pub fn get_mru(&self) -> Option<(&K, &V)> {
+        if self.is_empty() {
+            return None;
+        }
 
-            self.detach(node_ptr);
-            self.attach(node_ptr);
+        unsafe {
+            let node = (*self.head).next;
 
-            Some(unsafe { &mut (*(*node_ptr).val.as_mut_ptr()) as &mut V })
-        } else {
-            None
+            let val = &(*(*node).val.as_ptr()) as &V;
+            let key = &(*(*node).key.as_ptr()) as &K;
+            Some((key, val))
         }
     }
 
-    /// Returns a mutable reference to the value of the key in the cache or `None` if it
-    /// is not present in the cache. Moves the key to the head of the LRU list if it exists.
+    /// Returns the least recent used entry(&K, &mut V) in the cache or `None` if the cache is empty.
     ///
     /// # Example
     ///
     /// ```
-    /// use caches::RawLRU;
+    /// use caches::{Cache, RawLRU};
     /// let mut cache = RawLRU::new(2).unwrap();
     ///
     /// cache.put("apple", 8);
@@ -464,30 +736,32 @@ impl<K: Hash + Eq, V, E: OnEvictCallback, S: BuildHasher> RawLRU<K, V, E, S> {
         }
     }
 
-    /// Returns a reference to the value corresponding to the key in the cache or `None` if it is
-    /// not present in the cache. Unlike `get`, `peek` does not update the LRU list so the key's
-    /// position will be unchanged.
+    /// Returns the most recent used entry (&K, &mut V) in the cache or `None` if the cache is empty.
     ///
     /// # Example
     ///
     /// ```
-    /// use caches::RawLRU;
+    /// use caches::{Cache, RawLRU};
     /// let mut cache = RawLRU::new(2).unwrap();
     ///
-    /// cache.put(1, "a");
-    /// cache.put(2, "b");
+    /// cache.put("apple", 8);
+    /// cache.put("banana", 4);
+    /// cache.put("banana", 6);
+    /// cache.put("pear", 2);
     ///
-    /// assert_eq!(cache.peek(&1), Some(&"a"));
-    /// assert_eq!(cache.peek(&2), Some(&"b"));
+    /// assert_eq!(cache.get_mru_mut(), Some((&"pear", &mut 2)));
     /// ```
-    pub fn peek<'a, Q>(&'_ self, k: &'a Q) -> Option<&'a V>
-    where
-        KeyRef<K>: Borrow<Q>,
-        Q: Hash + Eq + ?Sized,
-    {
-        self.map
-            .get(k)
-            .map(|node| unsafe { &(*(*node).val.as_ptr()) as &V })
+    pub fn get_mru_mut(&mut self) -> Option<(&K, &mut V)> {
+        if self.is_empty() {
+            return None;
+        }
+
+        unsafe {
+            let node = (*self.head).next;
+            let key = &(*(*node).key.as_ptr()) as &K;
+            let val = &mut (*(*node).val.as_mut_ptr()) as &mut V;
+            Some((key, val))
+        }
     }
 
     /// `peek_or_put` peeks if a key is in the cache without updating the
@@ -498,7 +772,7 @@ impl<K: Hash + Eq, V, E: OnEvictCallback, S: BuildHasher> RawLRU<K, V, E, S> {
     /// # Example
     ///
     /// ```
-    /// use caches::{RawLRU, PutResult};
+    /// use caches::{RawLRU, PutResult, Cache};
     /// let mut cache = RawLRU::new(2).unwrap();
     ///
     /// cache.put(1, "a");
@@ -517,33 +791,6 @@ impl<K: Hash + Eq, V, E: OnEvictCallback, S: BuildHasher> RawLRU<K, V, E, S> {
         }
     }
 
-    /// Returns a mutable reference to the value corresponding to the key in the cache or `None`
-    /// if it is not present in the cache. Unlike `get_mut`, `peek_mut` does not update the LRU
-    /// list so the key's position will be unchanged.
-    ///
-    /// # Example
-    ///
-    /// ```
-    /// use caches::RawLRU;
-    /// let mut cache = RawLRU::new(2).unwrap();
-    ///
-    /// cache.put(1, "a");
-    /// cache.put(2, "b");
-    ///
-    /// assert_eq!(cache.peek_mut(&1), Some(&mut "a"));
-    /// assert_eq!(cache.peek_mut(&2), Some(&mut "b"));
-    /// ```
-    pub fn peek_mut<'a, Q>(&'_ mut self, k: &'a Q) -> Option<&'a mut V>
-    where
-        KeyRef<K>: Borrow<Q>,
-        Q: Hash + Eq + ?Sized,
-    {
-        match self.map.get_mut(k) {
-            None => None,
-            Some(node) => Some(unsafe { &mut (*(*node).val.as_mut_ptr()) as &mut V }),
-        }
-    }
-
     /// `peek_mut_or_put` peeks if a key is in the cache without updating the
     /// recent-ness or deleting it for being stale, and if not, adds the value.
     /// Returns whether found and whether a [`PutResult`].
@@ -552,7 +799,7 @@ impl<K: Hash + Eq, V, E: OnEvictCallback, S: BuildHasher> RawLRU<K, V, E, S> {
     /// # Example
     ///
     /// ```
-    /// use caches::{RawLRU, PutResult};
+    /// use caches::{RawLRU, PutResult, Cache};
     /// let mut cache = RawLRU::new(2).unwrap();
     ///
     /// cache.put(1, "a");
@@ -579,7 +826,7 @@ impl<K: Hash + Eq, V, E: OnEvictCallback, S: BuildHasher> RawLRU<K, V, E, S> {
     /// # Example
     ///
     /// ```
-    /// use caches::RawLRU;
+    /// use caches::{Cache, RawLRU};
     /// let mut cache = RawLRU::new(2).unwrap();
     ///
     /// cache.put(1, "a");
@@ -609,7 +856,7 @@ impl<K: Hash + Eq, V, E: OnEvictCallback, S: BuildHasher> RawLRU<K, V, E, S> {
     /// # Example
     ///
     /// ```
-    /// use caches::RawLRU;
+    /// use caches::{Cache, RawLRU};
     /// let mut cache = RawLRU::new(2).unwrap();
     ///
     /// cache.put(1, "a");
@@ -632,29 +879,64 @@ impl<K: Hash + Eq, V, E: OnEvictCallback, S: BuildHasher> RawLRU<K, V, E, S> {
         Some((key, val))
     }
 
-    /// Returns a bool indicating whether the given key is in the cache. Does not update the
-    /// LRU list.
+    /// Returns the value corresponding to the most recently used item or `None` if the
+    /// cache is empty. Like `peek`, `peek_lru` does not update the LRU list so the item's
+    /// position will be unchanged.
     ///
     /// # Example
     ///
     /// ```
-    /// use caches::RawLRU;
+    /// use caches::{Cache, RawLRU};
     /// let mut cache = RawLRU::new(2).unwrap();
     ///
     /// cache.put(1, "a");
     /// cache.put(2, "b");
-    /// cache.put(3, "c");
     ///
-    /// assert!(!cache.contains(&1));
-    /// assert!(cache.contains(&2));
-    /// assert!(cache.contains(&3));
+    /// assert_eq!(cache.peek_mru(), Some((&2, &"b")));
     /// ```
-    pub fn contains<Q>(&self, k: &Q) -> bool
-    where
-        KeyRef<K>: Borrow<Q>,
-        Q: Hash + Eq + ?Sized,
-    {
-        self.map.contains_key(k)
+    pub fn peek_mru(&self) -> Option<(&K, &V)> {
+        if self.is_empty() {
+            return None;
+        }
+
+        let (key, val);
+        unsafe {
+            let node = (*self.head).next;
+            key = &(*(*node).key.as_ptr()) as &K;
+            val = &(*(*node).val.as_ptr()) as &V;
+        }
+
+        Some((key, val))
+    }
+
+    /// Returns the mutable value corresponding to the most recently used item or `None` if the
+    /// cache is empty. Like `peek`, `peek_lru` does not update the LRU list so the item's
+    /// position will be unchanged.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use caches::{Cache, RawLRU};
+    /// let mut cache = RawLRU::new(2).unwrap();
+    ///
+    /// cache.put(1, "a");
+    /// cache.put(2, "b");
+    ///
+    /// assert_eq!(cache.peek_mru_mut(), Some((&2, &mut "b")));
+    /// ```
+    pub fn peek_mru_mut(&mut self) -> Option<(&K, &mut V)> {
+        if self.is_empty() {
+            return None;
+        }
+
+        let (key, val);
+        unsafe {
+            let node = (*self.head).next;
+            key = &(*(*node).key.as_ptr()) as &K;
+            val = &mut (*(*node).val.as_mut_ptr()) as &mut V;
+        }
+
+        Some((key, val))
     }
 
     /// `contains_or_put` checks if a key is in the cache without updating the
@@ -665,7 +947,7 @@ impl<K: Hash + Eq, V, E: OnEvictCallback, S: BuildHasher> RawLRU<K, V, E, S> {
     /// # Example
     ///
     /// ```
-    /// use caches::{RawLRU, PutResult};
+    /// use caches::{RawLRU, PutResult, Cache};
     /// let mut cache = RawLRU::new(2).unwrap();
     ///
     /// cache.put(1, "a");
@@ -685,49 +967,13 @@ impl<K: Hash + Eq, V, E: OnEvictCallback, S: BuildHasher> RawLRU<K, V, E, S> {
         }
     }
 
-    /// Removes and returns the value corresponding to the key from the cache or
-    /// `None` if it does not exist.
-    ///
-    /// # Example
-    ///
-    /// ```
-    /// use caches::RawLRU;
-    /// let mut cache = RawLRU::new(2).unwrap();
-    ///
-    /// cache.put(2, "a");
-    ///
-    /// assert_eq!(cache.remove(&1), None);
-    /// assert_eq!(cache.remove(&2), Some("a"));
-    /// assert_eq!(cache.remove(&2), None);
-    /// assert_eq!(cache.len(), 0);
-    /// ```
-    pub fn remove<Q>(&mut self, k: &Q) -> Option<V>
-    where
-        KeyRef<K>: Borrow<Q>,
-        Q: Hash + Eq + ?Sized,
-    {
-        match self.map.remove(k) {
-            None => None,
-            Some(mut old_node) => {
-                let node_ptr: *mut EntryNode<K, V> = &mut *old_node;
-                self.detach(node_ptr);
-                unsafe {
-                    let val = old_node.val.assume_init();
-                    self.cb(&*old_node.key.as_ptr(), &val);
-                    ptr::drop_in_place(old_node.key.as_mut_ptr());
-                    Some(val)
-                }
-            }
-        }
-    }
-
     /// Removes and returns the key and value corresponding to the least recently
     /// used item or `None` if the cache is empty.
     ///
     /// # Example
     ///
     /// ```
-    /// use caches::RawLRU;
+    /// use caches::{Cache, RawLRU};
     /// let mut cache = RawLRU::new(2).unwrap();
     ///
     /// cache.put(2, "a");
@@ -753,124 +999,13 @@ impl<K: Hash + Eq, V, E: OnEvictCallback, S: BuildHasher> RawLRU<K, V, E, S> {
         }
     }
 
-    /// Returns the number of key-value pairs that are currently in the the cache.
-    ///
-    /// # Example
-    ///
-    /// ```
-    /// use caches::RawLRU;
-    /// let mut cache = RawLRU::new(2).unwrap();
-    /// assert_eq!(cache.len(), 0);
-    ///
-    /// cache.put(1, "a");
-    /// assert_eq!(cache.len(), 1);
-    ///
-    /// cache.put(2, "b");
-    /// assert_eq!(cache.len(), 2);
-    ///
-    /// cache.put(3, "c");
-    /// assert_eq!(cache.len(), 2);
-    /// ```
-    pub fn len(&self) -> usize {
-        self.map.len()
-    }
-
-    /// Returns a bool indicating whether the cache is empty or not.
-    ///
-    /// # Example
-    ///
-    /// ```
-    /// use caches::RawLRU;
-    /// let mut cache = RawLRU::new(2).unwrap();
-    /// assert!(cache.is_empty());
-    ///
-    /// cache.put(1, "a");
-    /// assert!(!cache.is_empty());
-    /// ```
-    pub fn is_empty(&self) -> bool {
-        self.map.len() == 0
-    }
-
-    /// Returns the maximum number of key-value pairs the cache can hold.
-    ///
-    /// # Example
-    ///
-    /// ```
-    /// use caches::RawLRU;
-    /// let mut cache: RawLRU<isize, &str> = RawLRU::new(2).unwrap();
-    /// assert_eq!(cache.cap(), 2);
-    /// ```
-    pub fn cap(&self) -> usize {
-        self.cap
-    }
-
-    /// Resizes the cache. If the new capacity is smaller than the size of the current
-    /// cache any entries past the new capacity are discarded.
-    ///
-    /// # Example
-    ///
-    /// ```
-    /// use caches::RawLRU;
-    /// let mut cache: RawLRU<isize, &str> = RawLRU::new(2).unwrap();
-    ///
-    /// cache.put(1, "a");
-    /// cache.put(2, "b");
-    /// cache.resize(4);
-    /// cache.put(3, "c");
-    /// cache.put(4, "d");
-    ///
-    /// assert_eq!(cache.len(), 4);
-    /// assert_eq!(cache.get(&1), Some(&"a"));
-    /// assert_eq!(cache.get(&2), Some(&"b"));
-    /// assert_eq!(cache.get(&3), Some(&"c"));
-    /// assert_eq!(cache.get(&4), Some(&"d"));
-    /// ```
-    pub fn resize(&mut self, cap: usize) -> u64 {
-        let mut evicted = 0u64;
-        // return early if capacity doesn't change
-        if cap == self.cap {
-            return evicted;
-        }
-
-        while self.map.len() > cap {
-            self.remove_lru();
-            evicted += 1;
-        }
-        self.map.shrink_to_fit();
-
-        self.cap = cap;
-        evicted
-    }
-
-    /// Clears the contents of the cache.
-    ///
-    /// # Example
-    ///
-    /// ```
-    /// use caches::RawLRU;
-    /// let mut cache: RawLRU<isize, &str> = RawLRU::new(2).unwrap();
-    /// assert_eq!(cache.len(), 0);
-    ///
-    /// cache.put(1, "a");
-    /// assert_eq!(cache.len(), 1);
-    ///
-    /// cache.put(2, "b");
-    /// assert_eq!(cache.len(), 2);
-    ///
-    /// cache.purge();
-    /// assert_eq!(cache.len(), 0);
-    /// ```
-    pub fn purge(&mut self) {
-        while self.remove_lru().is_some() {}
-    }
-
     /// An iterator visiting all keys in most-recently used order. The iterator element type is
     /// `&'a K`.
     ///
     /// # Examples
     ///
     /// ```
-    /// use caches::RawLRU;
+    /// use caches::{Cache, RawLRU};
     ///
     /// let mut cache = RawLRU::new(3).unwrap();
     /// cache.put("a", 1);
@@ -891,7 +1026,7 @@ impl<K: Hash + Eq, V, E: OnEvictCallback, S: BuildHasher> RawLRU<K, V, E, S> {
     /// # Examples
     ///
     /// ```
-    /// use caches::RawLRU;
+    /// use caches::{Cache, RawLRU};
     ///
     /// let mut cache = RawLRU::new(3).unwrap();
     /// cache.put("a", 1);
@@ -914,7 +1049,7 @@ impl<K: Hash + Eq, V, E: OnEvictCallback, S: BuildHasher> RawLRU<K, V, E, S> {
     /// # Examples
     ///
     /// ```
-    /// use caches::RawLRU;
+    /// use caches::{Cache, RawLRU};
     ///
     /// let mut cache = RawLRU::new(3).unwrap();
     /// cache.put("a", 1);
@@ -935,7 +1070,7 @@ impl<K: Hash + Eq, V, E: OnEvictCallback, S: BuildHasher> RawLRU<K, V, E, S> {
     /// # Examples
     ///
     /// ```
-    /// use caches::RawLRU;
+    /// use caches::{Cache, RawLRU};
     ///
     /// let mut cache = RawLRU::new(3).unwrap();
     /// cache.put("a", 1);
@@ -958,7 +1093,7 @@ impl<K: Hash + Eq, V, E: OnEvictCallback, S: BuildHasher> RawLRU<K, V, E, S> {
     /// # Examples
     ///
     /// ```
-    /// use caches::RawLRU;
+    /// use caches::{Cache, RawLRU};
     ///
     /// let mut cache = RawLRU::new(3).unwrap();
     /// cache.put("a", 1);
@@ -981,7 +1116,7 @@ impl<K: Hash + Eq, V, E: OnEvictCallback, S: BuildHasher> RawLRU<K, V, E, S> {
     /// # Examples
     ///
     /// ```
-    /// use caches::RawLRU;
+    /// use caches::{Cache, RawLRU};
     ///
     /// let mut cache = RawLRU::new(3).unwrap();
     /// cache.put("a", 1);
@@ -1004,7 +1139,7 @@ impl<K: Hash + Eq, V, E: OnEvictCallback, S: BuildHasher> RawLRU<K, V, E, S> {
     /// # Examples
     ///
     /// ```
-    /// use caches::RawLRU;
+    /// use caches::{Cache, RawLRU};
     ///
     /// let mut cache = RawLRU::new(3).unwrap();
     /// cache.put("a", 1);
@@ -1030,7 +1165,7 @@ impl<K: Hash + Eq, V, E: OnEvictCallback, S: BuildHasher> RawLRU<K, V, E, S> {
     /// # Examples
     ///
     /// ```
-    /// use caches::RawLRU;
+    /// use caches::{Cache, RawLRU};
     ///
     /// let mut cache = RawLRU::new(3).unwrap();
     /// cache.put("a", 1);
@@ -1056,7 +1191,7 @@ impl<K: Hash + Eq, V, E: OnEvictCallback, S: BuildHasher> RawLRU<K, V, E, S> {
     /// # Examples
     ///
     /// ```
-    /// use caches::RawLRU;
+    /// use caches::{Cache, RawLRU};
     ///
     /// struct HddBlock {
     ///     dirty: bool,
@@ -1091,7 +1226,7 @@ impl<K: Hash + Eq, V, E: OnEvictCallback, S: BuildHasher> RawLRU<K, V, E, S> {
     /// # Examples
     ///
     /// ```
-    /// use caches::RawLRU;
+    /// use caches::{Cache, RawLRU};
     ///
     /// struct HddBlock {
     ///     dirty: bool,
@@ -1841,11 +1976,12 @@ impl_send_and_sync_for_iterator! {
 #[cfg(test)]
 mod tests {
     use super::RawLRU;
-    use crate::{CacheError, PutResult};
+    use crate::lru::CacheError;
+    use crate::{Cache, PutResult, ResizableCache};
     use alloc::collections::BTreeMap;
     use core::fmt::Debug;
-    use hashbrown::HashMap;
     use scoped_threadpool::Pool;
+    use std::collections::HashMap;
     use std::sync::atomic::{AtomicUsize, Ordering};
 
     fn assert_opt_eq<V: PartialEq + Debug>(opt: Option<&V>, v: V) {

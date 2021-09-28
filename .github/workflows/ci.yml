@@ -2,7 +2,9 @@ name: CI
 
 on:
   push:
-    # Don't run Clippy tests, when only textfiles were modified
+    branches:
+      - main
+
     paths-ignore:
       - 'README'
       - 'COPYRIGHT'
@@ -12,7 +14,9 @@ on:
       - 'benches'
       - 'examples'
   pull_request:
-    # Don't run Clippy tests, when only textfiles were modified
+    branches:
+      - main
+
     paths-ignore:
       - 'README'
       - 'COPYRIGHT'

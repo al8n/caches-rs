@@ -1,17 +1,16 @@
 [package]
 name = "caches"
-version = "0.1.8"
+version = "0.2.0"
 authors = ["Al Liu <scygliu1@gmail.com>"]
-description = "This is a Rust implementation for HashiCorp's golang-lru. LRUCache, TwoQueueCache and AdaptiveReplacementCache"
+description = "This is a Rust implementation for popular caches (support no_std)."
 homepage = "https://github.com/al8n/caches"
 repository = "https://github.com/al8n/caches.git"
 documentation = "https://docs.rs/caches/"
 readme = "README.md"
 license = "MIT OR Apache-2.0"
-keywords = ["lru", "cache", "2q", "arc-cache", "data-structures"]
-categories = ["algorithms", "data-structures"]
+keywords = ["lru", "cache", "tinylfu", "no_std", "data-structures"]
+categories = ["algorithms", "data-structures", "no-std"]
 edition = "2018"
-
 
 [[bench]]
 name = "lru_cache"
@@ -25,21 +24,31 @@ harness = false
 name = "arc_cache"
 harness = false
 
-[[example]]
-name = "hit_ratio"
-path = "examples/hit_ratio.rs"
+[[bench]]
+name = "segmented_cache"
+harness = false
+
+[[bench]]
+name = "wtinylfu_cache"
+harness = false
 
 [features]
-default = ["hashbrown"]
-nightly = ["hashbrown", "hashbrown/nightly"]
+default = ["std"]
+std = ["rand", "rand/std", "rand/std_rng", "chrono/default"]
+core = ["hashbrown", "rand"]
+nightly = ["std", "rand/nightly"]
+nightly-core = ["core", "hashbrown/nightly"]
 
 [dependencies]
 hashbrown = {version = "0.11.2", optional = true}
+rand = {version = "0.8.4", optional = true}
+chrono = {version = "0.4", optional = true, default-features = false}
 
 [dev-dependencies]
 scoped_threadpool = "0.1.*"
 stats_alloc = "0.1.*"
-rand = "0.8.4"
 criterion = "0.3.5"
 fnv = "1.0.7"
+rand = "0.8.4"
 rustc-hash = "1.0"
+cascara = "0.1.0"
