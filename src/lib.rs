@@ -54,20 +54,17 @@ use core::hash::{Hash, Hasher};
 
 pub mod lru;
 pub use lru::{
-    AdaptiveCache, AdaptiveCacheBuilder, LRUCache, RawLRU, TwoQueueCache, TwoQueueCacheBuilder, SegmentedCache, SegmentedCacheBuilder
+    AdaptiveCache, AdaptiveCacheBuilder, LRUCache, RawLRU, SegmentedCache, SegmentedCacheBuilder,
+    TwoQueueCache, TwoQueueCacheBuilder,
 };
 
-pub mod cache_api;
-pub use cache_api::Cache;
+mod cache_api;
+pub use cache_api::{Cache, ResizableCache};
 pub mod lfu;
 pub use lfu::{WTinyLFUCache, WTinyLFUCacheBuilder};
 
 #[macro_use]
 mod macros;
-
-
-
-
 
 cfg_not_std!(
     /// Re-export for DefaultHashBuilder
@@ -133,7 +130,7 @@ impl OnEvictCallback for DefaultEvictCallback {
 ///
 /// # Example
 /// ```
-/// use caches::{RawLRU, OnEvictCallback};
+/// use caches::{RawLRU, OnEvictCallback, Cache};
 /// use std::sync::atomic::{AtomicU64, Ordering};
 /// use std::sync::Arc;
 ///

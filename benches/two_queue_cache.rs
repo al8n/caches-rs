@@ -1,4 +1,4 @@
-use caches::{TwoQueueCache, TwoQueueCacheBuilder};
+use caches::{Cache, TwoQueueCache, TwoQueueCacheBuilder};
 use criterion::{black_box, criterion_group, criterion_main, BatchSize, Criterion};
 use fnv::FnvBuildHasher;
 use rand::{thread_rng, Rng};

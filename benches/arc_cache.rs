@@ -1,4 +1,4 @@
-use caches::{AdaptiveCache, AdaptiveCacheBuilder};
+use caches::{AdaptiveCache, AdaptiveCacheBuilder, Cache};
 use criterion::{black_box, criterion_group, criterion_main, BatchSize, Criterion};
 use fnv::FnvBuildHasher;
 use rand::{thread_rng, Rng};

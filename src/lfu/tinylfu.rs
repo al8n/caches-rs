@@ -1,51 +1,25 @@
+//! Implement [TinyLFU: A Highly Efficient Cache Admission Policy].
+//! The implementation is highly inspired by [Dgraph's ristretto]
+//!
+//! [Dgraph's ristretto]: https://github.com/dgraph-io/ristretto/blob/master/policy.go
+//! [TinyLFU: A Highly Efficient Cache Admission Policy]: https://arxiv.org/pdf/1512.00727.pdf
+
 use crate::lfu::tinylfu::bloom::Bloom;
-use crate::lfu::tinylfu::error::TinyLFUError;
 use crate::lfu::tinylfu::sketch::CountMinSketch;
-use crate::{DefaultHashBuilder, KeyRef};
+use crate::lfu::{DefaultKeyHasher, KeyHasher};
+use crate::KeyRef;
 use core::borrow::Borrow;
-use core::hash::{BuildHasher, Hash, Hasher};
+use core::hash::Hash;
 use core::marker::PhantomData;
 
 mod bloom;
-pub mod error;
+mod error;
+pub use error::TinyLFUError;
 mod sketch;
 
 pub(crate) const DEFAULT_FALSE_POSITIVE_RATIO: f64 = 0.01;
 
-/// KeyHasher is used to hash keys for Bloom Filter and CountSketch
-pub trait KeyHasher<K: Hash + Eq> {
-    fn hash<Q>(&self, t: &Q) -> u64
-    where
-        KeyRef<K>: Borrow<Q>,
-        Q: Hash + Eq + ?Sized;
-}
-
-/// `DefaultKeyHasher` uses the same hasher as the Hashmap's default hasher
-#[derive(Copy, Clone)]
-pub struct DefaultKeyHasher<K: Hash + Eq> {
-    marker: PhantomData<K>,
-}
-
-impl<K: Hash + Eq> Default for DefaultKeyHasher<K> {
-    fn default() -> Self {
-        Self {
-            marker: Default::default(),
-        }
-    }
-}
-
-impl<K: Hash + Eq> KeyHasher<K> for DefaultKeyHasher<K> {
-    fn hash<Q>(&self, t: &Q) -> u64
-    where
-        KeyRef<K>: Borrow<Q>,
-        Q: Hash + Eq + ?Sized,
-    {
-        let mut s = DefaultHashBuilder::default().build_hasher();
-        t.hash(&mut s);
-        s.finish()
-    }
-}
-
+/// TinyLFUBuilder is used to build a TinyLFU
 pub struct TinyLFUBuilder<K, KH = DefaultKeyHasher<K>> {
     samples: usize,
     size: usize,
@@ -144,7 +118,6 @@ impl<K: Hash + Eq, KH: KeyHasher<K>> TinyLFUBuilder<K, KH> {
 
 /// TinyLFU is an admission helper that keeps track of access frequency using
 /// tiny (4-bit) counters in the form of a count-min sketch.
-/// tinyLFU is NOT thread safe.
 pub struct TinyLFU<K, KH = DefaultKeyHasher<K>> {
     ctr: CountMinSketch,
     doorkeeper: Bloom,
@@ -168,6 +141,9 @@ impl<K: Hash + Eq> TinyLFU<K> {
 }
 
 impl<K: Hash + Eq, KH: KeyHasher<K>> TinyLFU<K, KH> {
+    /// Returns a TinyLFU according to the [`TinyLFUBuilder`]
+    ///
+    /// [`TinyLFUBuilder`]: struct.TinyLFUBuilder.html
     pub fn from_builder(builder: TinyLFUBuilder<K, KH>) -> Result<Self, TinyLFUError> {
         builder.finalize()
     }
@@ -183,7 +159,7 @@ impl<K: Hash + Eq, KH: KeyHasher<K>> TinyLFU<K, KH> {
     ///
     /// [TinyLFU: A Highly Efficient Cache Admission Policy §3.4.2]: https://arxiv.org/pdf/1512.00727.pdf
     pub fn estimate(&self, key: &K) -> u64 {
-        let kh = self.hash(key);
+        let kh = self.hash_key(key);
         let mut hits = self.ctr.estimate(kh);
         if self.doorkeeper.contains(kh) {
             hits += 1;
@@ -201,7 +177,7 @@ impl<K: Hash + Eq, KH: KeyHasher<K>> TinyLFU<K, KH> {
     /// Otherwise, TinyLFU returns just the estimation from the main structure.
     ///
     /// [TinyLFU: A Highly Efficient Cache Admission Policy §3.4.2]: https://arxiv.org/pdf/1512.00727.pdf
-    pub fn estimate_hash(&self, kh: u64) -> u64 {
+    pub fn estimate_hashed_key(&self, kh: u64) -> u64 {
         let mut hits = self.ctr.estimate(kh);
         if self.doorkeeper.contains(kh) {
             hits += 1;
@@ -212,15 +188,19 @@ impl<K: Hash + Eq, KH: KeyHasher<K>> TinyLFU<K, KH> {
     /// increment multiple keys, for details, please see [`increment`].
     ///
     /// [`increment`]: struct.TinyLFU.method.increment.html
-    pub fn increment_keys(&mut self, keys: &[K]) {
+    pub fn increment_keys<'a, Q>(&mut self, keys: &[&'a Q])
+    where
+        KeyRef<K>: Borrow<Q>,
+        Q: Hash + Eq + ?Sized,
+    {
         keys.into_iter().for_each(|k| self.increment(k))
     }
 
     /// increment multiple hashed keys, for details, please see [`increment_hash`].
     ///
-    /// [`increment_hash`]: struct.TinyLFU.method.increment_hash.html
-    pub fn increment_hashes(&mut self, khs: &[u64]) {
-        khs.into_iter().for_each(|k| self.increment_hash(*k))
+    /// [`increment_hashed_key`]: struct.TinyLFU.method.increment_hashed_key.html
+    pub fn increment_hashed_keys(&mut self, khs: &[u64]) {
+        khs.into_iter().for_each(|k| self.increment_hashed_key(*k))
     }
 
     /// See [TinyLFU: A Highly Efficient Cache Admission Policy] §3.2
@@ -231,7 +211,7 @@ impl<K: Hash + Eq, KH: KeyHasher<K>> TinyLFU<K, KH> {
         KeyRef<K>: Borrow<Q>,
         Q: Hash + Eq + ?Sized,
     {
-        let kh = self.hash(key);
+        let kh = self.hash_key(key);
         // Flip doorkeeper bit if not already done.
         if !self.doorkeeper.contains_or_add(kh) {
             // Increment count-min counter if doorkeeper bit is already set.
@@ -244,7 +224,7 @@ impl<K: Hash + Eq, KH: KeyHasher<K>> TinyLFU<K, KH> {
     /// See [TinyLFU: A Highly Efficient Cache Admission Policy] §3.2
     ///
     /// [TinyLFU: A Highly Efficient Cache Admission Policy]: https://arxiv.org/pdf/1512.00727.pdf
-    pub fn increment_hash(&mut self, kh: u64) {
+    pub fn increment_hashed_key(&mut self, kh: u64) {
         // Flip doorkeeper bit if not already done.
         if !self.doorkeeper.contains_or_add(kh) {
             // Increment count-min counter if doorkeeper bit is already set.
@@ -291,7 +271,7 @@ impl<K: Hash + Eq, KH: KeyHasher<K>> TinyLFU<K, KH> {
     /// `contains` checks if bit(s) for entry is/are set,
     /// returns true if the hash was added to the TinyLFU.
     pub fn contains(&self, key: &K) -> bool {
-        let kh = self.hash(key);
+        let kh = self.hash_key(key);
         self.doorkeeper.contains(kh)
     }
 
@@ -357,10 +337,10 @@ impl<K: Hash + Eq, KH: KeyHasher<K>> TinyLFU<K, KH> {
     }
 
     fn compare_helper<'a, 'b>(&'_ self, a: &'a K, b: &'b K) -> (u64, u64) {
-        let akh = self.hash(a);
+        let akh = self.hash_key(a);
         let mut a_ctr = 0;
         if !self.doorkeeper.contains(akh) {
-            let bkh = self.hash(b);
+            let bkh = self.hash_key(b);
             return if !self.doorkeeper.contains(bkh) {
                 (0, 0)
             } else {
@@ -370,7 +350,7 @@ impl<K: Hash + Eq, KH: KeyHasher<K>> TinyLFU<K, KH> {
             a_ctr += 1;
         }
 
-        let bkh = self.hash(b);
+        let bkh = self.hash_key(b);
         let mut b_ctr = 0;
         if !self.doorkeeper.contains(bkh) {
             return (1, 0);
@@ -383,15 +363,105 @@ impl<K: Hash + Eq, KH: KeyHasher<K>> TinyLFU<K, KH> {
 
         (a_ctr, b_ctr)
     }
-}
 
-impl<K: Hash + Eq, KH: KeyHasher<K>> KeyHasher<K> for TinyLFU<K, KH> {
+    /// Returns the hash for the key
     #[inline]
-    fn hash<Q>(&self, t: &Q) -> u64
+    pub fn hash_key<Q>(&self, k: &Q) -> u64
     where
         KeyRef<K>: Borrow<Q>,
         Q: Hash + Eq + ?Sized,
     {
-        self.kh.hash(t)
+        self.kh.hash_key(k)
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use crate::lfu::tinylfu::TinyLFU;
+
+    #[test]
+    fn test_increment() {
+        let mut l: TinyLFU<u64> = TinyLFU::new(4, 4, 0.01).unwrap();
+        let kh = l.hash_key(&1);
+        l.increment(&1);
+        l.increment(&1);
+        l.increment(&1);
+        assert!(l.doorkeeper.contains(kh));
+        assert_eq!(l.ctr.estimate(kh), 2);
+
+        l.increment(&1);
+        assert!(!l.doorkeeper.contains(kh));
+        assert_eq!(l.ctr.estimate(kh), 1);
+    }
+
+    #[test]
+    fn test_increment_hashed_key() {
+        let mut l: TinyLFU<u64> = TinyLFU::new(4, 4, 0.01).unwrap();
+
+        l.increment_hashed_key(1);
+        l.increment_hashed_key(1);
+        l.increment_hashed_key(1);
+        assert!(l.doorkeeper.contains(1));
+        assert_eq!(l.ctr.estimate(1), 2);
+
+        l.increment_hashed_key(1);
+        assert!(!l.doorkeeper.contains(1));
+        assert_eq!(l.ctr.estimate(1), 1);
+    }
+
+    #[test]
+    fn test_estimate() {
+        let mut l: TinyLFU<u64> = TinyLFU::new(8, 8, 0.01).unwrap();
+        l.increment(&1);
+        l.increment(&1);
+        l.increment(&1);
+
+        assert_eq!(l.estimate(&1), 3);
+        assert_eq!(l.estimate(&2), 0);
+        assert_eq!(l.w, 3);
+    }
+
+    #[test]
+    fn test_estimate_hashed_keyed_key() {
+        let mut l: TinyLFU<u64> = TinyLFU::new(8, 8, 0.01).unwrap();
+        l.increment_hashed_key(1);
+        l.increment_hashed_key(1);
+        l.increment_hashed_key(1);
+        assert_eq!(l.estimate_hashed_key(1), 3);
+        assert_eq!(l.estimate_hashed_key(2), 0);
+        assert_eq!(l.w, 3);
+    }
+
+    #[test]
+    fn test_increment_keys() {
+        let mut l: TinyLFU<u64> = TinyLFU::new(16, 16, 0.01).unwrap();
+
+        assert_eq!(l.samples, 16);
+        l.increment_keys(&[&1, &2, &2, &3, &3, &3]);
+        assert_eq!(l.estimate(&1), 1);
+        assert_eq!(l.estimate(&2), 2);
+        assert_eq!(l.estimate(&3), 3);
+        assert_eq!(6, l.w);
+    }
+
+    #[test]
+    fn test_increment_hashed_keys() {
+        let mut l: TinyLFU<u64> = TinyLFU::new(16, 16, 0.01).unwrap();
+
+        assert_eq!(l.samples, 16);
+        l.increment_hashed_keys(&[1, 2, 2, 3, 3, 3]);
+        assert_eq!(l.estimate_hashed_key(1), 1);
+        assert_eq!(l.estimate_hashed_key(2), 2);
+        assert_eq!(l.estimate_hashed_key(3), 3);
+        assert_eq!(6, l.w);
+    }
+
+    #[test]
+    fn test_clear() {
+        let mut l: TinyLFU<u64> = TinyLFU::new(16, 16, 0.01).unwrap();
+        l.increment_hashed_keys(&[1, 3, 3, 3]);
+        l.clear();
+        assert_eq!(0, l.w);
+        assert_eq!(0, l.estimate_hashed_key(3));
     }
 }

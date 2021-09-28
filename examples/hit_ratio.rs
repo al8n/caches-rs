@@ -1,4 +1,4 @@
-use caches::{AdaptiveCache, LRUCache, TwoQueueCache};
+use caches::{AdaptiveCache, Cache, LRUCache, TwoQueueCache};
 use rand::{thread_rng, Rng};
 
 fn lru_cache(cases: Vec<(usize, Vec<u64>)>) -> Vec<(usize, f64)> {

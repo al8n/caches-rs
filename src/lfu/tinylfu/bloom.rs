@@ -92,6 +92,11 @@ impl Bloom {
         self.bitset.iter_mut().for_each(|v| *v = 0);
     }
 
+    /// Returns the exp of the size
+    pub fn size_exp(&self) -> u64 {
+        self.size_exp
+    }
+
     /// `clear` clear the `Bloom` filter
     pub fn clear(&mut self) {
         self.bitset.iter_mut().for_each(|v| *v = 0);

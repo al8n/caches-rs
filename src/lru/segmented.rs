@@ -1,5 +1,5 @@
 use crate::lru::{debox, swap_value, CacheError, RawLRU};
-use crate::{DefaultEvictCallback, DefaultHashBuilder, KeyRef, PutResult, Cache};
+use crate::{Cache, DefaultEvictCallback, DefaultHashBuilder, KeyRef, PutResult};
 use core::borrow::Borrow;
 use core::hash::{BuildHasher, Hash};
 
@@ -285,7 +285,9 @@ impl<K: Hash + Eq, V, FH: BuildHasher, RH: BuildHasher> SegmentedCache<K, V, FH,
     }
 }
 
-impl<K: Hash + Eq, V, FH: BuildHasher, RH: BuildHasher> Cache<K, V> for SegmentedCache<K, V, FH, RH> {
+impl<K: Hash + Eq, V, FH: BuildHasher, RH: BuildHasher> Cache<K, V>
+    for SegmentedCache<K, V, FH, RH>
+{
     /// Puts a key-value pair into cache, returns a [`PutResult`].
     ///
     /// # Example
@@ -357,9 +359,9 @@ impl<K: Hash + Eq, V, FH: BuildHasher, RH: BuildHasher> Cache<K, V> for Segmente
     /// assert_eq!(cache.get(&"banana"), Some(&6));
     /// ```
     fn get<'a, Q>(&mut self, k: &'a Q) -> Option<&'a V>
-        where
-            KeyRef<K>: Borrow<Q>,
-            Q: Hash + Eq + ?Sized,
+    where
+        KeyRef<K>: Borrow<Q>,
+        Q: Hash + Eq + ?Sized,
     {
         self.protected
             // already in protected LRU, we move it to the front
@@ -393,9 +395,9 @@ impl<K: Hash + Eq, V, FH: BuildHasher, RH: BuildHasher> Cache<K, V> for Segmente
     /// assert_eq!(cache.get_mut(&"banana"), Some(&mut 6));
     /// ```
     fn get_mut<'a, Q>(&mut self, k: &'a Q) -> Option<&'a mut V>
-        where
-            KeyRef<K>: Borrow<Q>,
-            Q: Hash + Eq + ?Sized,
+    where
+        KeyRef<K>: Borrow<Q>,
+        Q: Hash + Eq + ?Sized,
     {
         self.protected
             // already in protected LRU, we move it to the front
@@ -429,9 +431,9 @@ impl<K: Hash + Eq, V, FH: BuildHasher, RH: BuildHasher> Cache<K, V> for Segmente
     /// assert_eq!(cache.peek(&2), Some(&"b"));
     /// ```
     fn peek<'a, Q>(&self, k: &'a Q) -> Option<&'a V>
-        where
-            KeyRef<K>: Borrow<Q>,
-            Q: Hash + Eq + ?Sized,
+    where
+        KeyRef<K>: Borrow<Q>,
+        Q: Hash + Eq + ?Sized,
     {
         self.protected.peek(k).or_else(|| self.probationary.peek(k))
     }
@@ -453,18 +455,17 @@ impl<K: Hash + Eq, V, FH: BuildHasher, RH: BuildHasher> Cache<K, V> for Segmente
     /// assert_eq!(cache.peek_mut(&2), Some(&mut "b"));
     /// ```
     fn peek_mut<'a, Q>(&mut self, k: &'a Q) -> Option<&'a mut V>
-        where
-            KeyRef<K>: Borrow<Q>,
-            Q: Hash + Eq + ?Sized,
+    where
+        KeyRef<K>: Borrow<Q>,
+        Q: Hash + Eq + ?Sized,
     {
         self.protected
             .peek_mut(k)
             .or_else(|| self.probationary.peek_mut(k))
     }
 
-
     /// Returns a bool indicating whether the given key is in the cache.
-    /// Does not update the LRU list.
+    /// Does not update the cache.
     ///
     /// # Example
     ///
@@ -476,14 +477,14 @@ impl<K: Hash + Eq, V, FH: BuildHasher, RH: BuildHasher> Cache<K, V> for Segmente
     /// cache.put(2, "b");
     /// cache.put(3, "c");
     ///
-    /// assert!(cache.contains(&1));
+    /// assert!(!cache.contains(&1));
     /// assert!(cache.contains(&2));
     /// assert!(cache.contains(&3));
     /// ```
     fn contains<Q>(&self, k: &Q) -> bool
-        where
-            KeyRef<K>: Borrow<Q>,
-            Q: Hash + Eq + ?Sized,
+    where
+        KeyRef<K>: Borrow<Q>,
+        Q: Hash + Eq + ?Sized,
     {
         self.protected.contains(k) || self.probationary.contains(k)
     }
@@ -506,9 +507,9 @@ impl<K: Hash + Eq, V, FH: BuildHasher, RH: BuildHasher> Cache<K, V> for Segmente
     /// assert_eq!(cache.len(), 0);
     /// ```
     fn remove<Q>(&mut self, k: &Q) -> Option<V>
-        where
-            KeyRef<K>: Borrow<Q>,
-            Q: Hash + Eq + ?Sized,
+    where
+        KeyRef<K>: Borrow<Q>,
+        Q: Hash + Eq + ?Sized,
     {
         self.probationary
             .remove(k)
@@ -538,7 +539,6 @@ impl<K: Hash + Eq, V, FH: BuildHasher, RH: BuildHasher> Cache<K, V> for Segmente
         self.probationary.purge();
         self.protected.purge();
     }
-
 
     /// Returns the number of key-value pairs that are currently in the the cache.
     ///
@@ -584,5 +584,9 @@ impl<K: Hash + Eq, V, FH: BuildHasher, RH: BuildHasher> Cache<K, V> for Segmente
     /// ```
     fn cap(&self) -> usize {
         self.protected_size + self.probationary_size
+    }
+
+    fn is_empty(&self) -> bool {
+        self.protected.is_empty() && self.probationary.is_empty()
     }
 }

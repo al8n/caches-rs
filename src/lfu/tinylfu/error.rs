@@ -1,11 +1,12 @@
 use core::fmt::{Debug, Display, Formatter};
 
+/// TinyLFUError contains the error of TinyLFU
 pub enum TinyLFUError {
+    /// Count Min sketch with wrong width
     InvalidCountMinWidth(u64),
+    /// Invalid Samples value for TinyLFU
     InvalidSamples(usize),
-    InvalidWindowCacheSize(usize),
-    InvalidProbationaryCacheSize(usize),
-    InvalidProtectedCacheSize(usize),
+    /// Invalid false positive ratio for TinyLFU
     InvalidFalsePositiveRatio(f64),
 }
 
@@ -15,15 +16,6 @@ impl TinyLFUError {
             TinyLFUError::InvalidSamples(v) => write!(f, "invalid number of samples: {}", *v),
             TinyLFUError::InvalidCountMinWidth(v) => {
                 write!(f, "invalid count main sketch width: {}", *v)
-            }
-            TinyLFUError::InvalidWindowCacheSize(v) => {
-                write!(f, "invalid window cache size: {}", *v)
-            }
-            TinyLFUError::InvalidProbationaryCacheSize(v) => {
-                write!(f, "invalid probationary cache size: {}", *v)
-            }
-            TinyLFUError::InvalidProtectedCacheSize(v) => {
-                write!(f, "invalid protected cache size: {}", *v)
             }
             TinyLFUError::InvalidFalsePositiveRatio(v) => write!(
                 f,

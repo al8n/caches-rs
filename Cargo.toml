@@ -24,9 +24,13 @@ harness = false
 name = "arc_cache"
 harness = false
 
-[[example]]
-name = "hit_ratio"
-path = "examples/hit_ratio.rs"
+[[bench]]
+name = "segmented_cache"
+harness = false
+
+[[bench]]
+name = "wtinylfu_cache"
+harness = false
 
 [features]
 default = ["std"]

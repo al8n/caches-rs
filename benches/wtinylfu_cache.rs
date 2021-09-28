@@ -1,12 +1,12 @@
-use caches::{Cache, LRUCache};
+use caches::{Cache, WTinyLFUCache, WTinyLFUCacheBuilder};
 use criterion::{black_box, criterion_group, criterion_main, BatchSize, Criterion};
 use fnv::FnvBuildHasher;
 use rand::{thread_rng, Rng};
 use rustc_hash::FxHasher;
 use std::hash::BuildHasherDefault;
 
-fn bench_lru_cache_default_hasher(c: &mut Criterion) {
-    c.bench_function("Test LRUCache freq default hasher", move |b| {
+fn bench_wtinylfu_cache_default_hasher(c: &mut Criterion) {
+    c.bench_function("Test WTinyLFUCache freq default hasher", move |b| {
         let cases = 1000_000;
         b.iter_batched(
             || {
@@ -22,7 +22,7 @@ fn bench_lru_cache_default_hasher(c: &mut Criterion) {
                         })
                         .collect(),
                 );
-                let l = LRUCache::new(8192).unwrap();
+                let l = WTinyLFUCache::with_sizes(82, 6488, 1622, 8192).unwrap();
                 (l, nums)
             },
             |(mut l, nums)| {
@@ -41,8 +41,8 @@ fn bench_lru_cache_default_hasher(c: &mut Criterion) {
     });
 }
 
-fn bench_lru_cache_fx_hasher(c: &mut Criterion) {
-    c.bench_function("Test LRUCache freq FX hasher", move |b| {
+fn bench_wtinylfu_cache_fx_hasher(c: &mut Criterion) {
+    c.bench_function("Test WTinyLFUCache freq FX hasher", move |b| {
         let cases = 1000_000;
         b.iter_batched(
             || {
@@ -58,8 +58,12 @@ fn bench_lru_cache_fx_hasher(c: &mut Criterion) {
                         })
                         .collect(),
                 );
-                let l =
-                    LRUCache::with_hasher(8192, BuildHasherDefault::<FxHasher>::default()).unwrap();
+
+                let builder = WTinyLFUCacheBuilder::new(82, 6488, 1622, 8192)
+                    .set_window_hasher(BuildHasherDefault::<FxHasher>::default())
+                    .set_protected_hasher(BuildHasherDefault::<FxHasher>::default())
+                    .set_probationary_hasher(BuildHasherDefault::<FxHasher>::default());
+                let l = WTinyLFUCache::from_builder(builder).unwrap();
                 (l, nums)
             },
             |(mut l, nums)| {
@@ -78,8 +82,8 @@ fn bench_lru_cache_fx_hasher(c: &mut Criterion) {
     });
 }
 
-fn bench_lru_cache_fnv_hasher(c: &mut Criterion) {
-    c.bench_function("Test LRUCache freq FNV hasher", move |b| {
+fn bench_wtinylfu_cache_fnv_hasher(c: &mut Criterion) {
+    c.bench_function("Test WTinyLFUCache freq FNV hasher", move |b| {
         let cases = 1000_000;
         b.iter_batched(
             || {
@@ -95,7 +99,11 @@ fn bench_lru_cache_fnv_hasher(c: &mut Criterion) {
                         })
                         .collect(),
                 );
-                let l = LRUCache::with_hasher(8192, FnvBuildHasher::default()).unwrap();
+                let builder = WTinyLFUCacheBuilder::new(82, 6488, 1622, 8192)
+                    .set_window_hasher(FnvBuildHasher::default())
+                    .set_protected_hasher(FnvBuildHasher::default())
+                    .set_probationary_hasher(FnvBuildHasher::default());
+                let l = WTinyLFUCache::from_builder(builder).unwrap();
                 (l, nums)
             },
             |(mut l, nums)| {
@@ -115,10 +123,10 @@ fn bench_lru_cache_fnv_hasher(c: &mut Criterion) {
 }
 
 criterion_group!(
-    lru_cache,
-    bench_lru_cache_default_hasher,
-    bench_lru_cache_fx_hasher,
-    bench_lru_cache_fnv_hasher
+    wtinylfu_cache,
+    bench_wtinylfu_cache_default_hasher,
+    bench_wtinylfu_cache_fx_hasher,
+    bench_wtinylfu_cache_fnv_hasher
 );
 
-criterion_main!(lru_cache);
+criterion_main!(wtinylfu_cache);
