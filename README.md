@@ -43,6 +43,11 @@ The MSRV for this crate is 1.55.0.
 ## Usages
 Please see [`examples`].
 
+## Roadmap
+- [x] `0.2`: Support TinyLFU, SampledLFU, WTinyLFUCache
+- [ ] `0.3`: Support LIRS, DLIRS, DSLRU
+- [ ] `0.4`: Add ttl feature
+
 ## Acknowledgments
  - The implementation of `RawLRU` is highly inspired by
  [Jerome Froelich's LRU implementation](https://github.com/jeromefroe/lru-rs)
@@ -57,10 +62,7 @@ Please see [`examples`].
 
  - Gil Einziger's paper: [TinyLFU: A Highly Efficient Cache Admission Policy]
 
-## Roadmap
-- [x] `0.2`: Support TinyLFU, SampledLFU, WTinyLFUCache
-- [ ] `0.3`: Support LIRS, DLIRS, DSLRU
-- [ ] `0.4`: Add ttl feature to support
+
 
 #### License
 
