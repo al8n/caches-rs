@@ -13,6 +13,7 @@ on:
       - '**.txt'
       - 'benches'
       - 'examples'
+      - '.github/FUNDING.yml'
   pull_request:
     branches:
       - main
@@ -25,6 +26,7 @@ on:
       - '**.txt'
       - 'benches'
       - 'examples'
+      - '.github/FUNDING.yml'
 
 env:
   CARGO_TERM_COLOR: always
