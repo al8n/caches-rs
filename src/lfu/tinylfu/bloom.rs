@@ -50,7 +50,6 @@ fn calc_size_by_wrong_positives(num_entries: f64, wrongs: f64) -> EntriesLocs {
 pub(crate) struct Bloom {
     bitset: Vec<u64>,
     elem_num: u64,
-    size_exp: u64,
     size: u64,
     set_locs: u64,
     shift: u64,
@@ -75,26 +74,15 @@ impl Bloom {
             bitset: vec![0; (size.size >> 6) as usize],
             elem_num: 0,
             size: size.size - 1,
-            size_exp: size.exp,
             set_locs: entries_locs.locs,
             shift: 64 - size.exp,
         };
         this
     }
 
-    /// `size` makes Bloom filter with as bitset of size sz.
-    pub fn size(&mut self, sz: usize) {
-        self.bitset = vec![0; sz >> 6]
-    }
-
     /// `reset` resets the `Bloom` filter
     pub fn reset(&mut self) {
         self.bitset.iter_mut().for_each(|v| *v = 0);
-    }
-
-    /// Returns the exp of the size
-    pub fn size_exp(&self) -> u64 {
-        self.size_exp
     }
 
     /// `clear` clear the `Bloom` filter
@@ -156,13 +144,6 @@ impl Bloom {
             self.add(hash);
             true
         }
-    }
-
-    /// `total_size` returns the total size of the bloom filter.
-    pub fn total_size(&self) -> usize {
-        // The bl struct has 5 members and each one is 8 byte. The bitset is a
-        // uint64 byte slice.
-        self.bitset.len() * 8 + 5 * 8
     }
 }
 
