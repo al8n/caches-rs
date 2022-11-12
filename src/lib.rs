@@ -50,7 +50,7 @@
 //!
 //! ## Related
 //! If you want a high-performance thread-safe modern cache, please see https://crates.io/crates/stretto
-//! 
+//!
 //! ## Acknowledgments
 //! - The implementation of `RawLRU` is highly inspired by
 //! [Jerome Froelich's LRU implementation](https://github.com/jeromefroe/lru-rs)
