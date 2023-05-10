@@ -3,12 +3,12 @@
 //! This file is a mechanical translation of the reference Golang code, available at https://github.com/dgraph-io/ristretto/blob/master/sketch.go
 //!
 //! I claim no additional copyright over the original implementation.
-use crate::lfu::tinylfu::sketch::{next_power_of_2, DEPTH, CountMinRow};
-use alloc::vec::Vec;
-use rand::{rngs::StdRng, SeedableRng, Rng};
-use chrono::{Utc};
-use crate::lfu::tinylfu::error::TinyLFUError;
+use std::time::{SystemTime, UNIX_EPOCH};
 
+use crate::lfu::tinylfu::error::TinyLFUError;
+use crate::lfu::tinylfu::sketch::{next_power_of_2, CountMinRow, DEPTH};
+use alloc::vec::Vec;
+use rand::{rngs::StdRng, Rng, SeedableRng};
 
 /// `CountMinSketch` is a small conservative-update count-min sketch
 /// implementation with 4-bit counters
@@ -27,7 +27,10 @@ impl CountMinSketch {
         let ctrs = next_power_of_2(ctrs);
         let hctrs = ctrs / 2;
 
-        let mut source = StdRng::seed_from_u64(Utc::now().timestamp_nanos().unsigned_abs());
+        let timestamp = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .expect("system time before Unix epoch");
+        let mut source = StdRng::seed_from_u64(timestamp.as_nanos() as u64);
 
         let seeds: Vec<u64> = {
             (0..DEPTH).map(|_| {
