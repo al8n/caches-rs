@@ -34,7 +34,7 @@ harness = false
 
 [features]
 default = ["std"]
-std = ["rand", "rand/std", "rand/std_rng", "chrono/default"]
+std = ["rand", "rand/std", "rand/std_rng"]
 core = ["hashbrown", "rand"]
 nightly = ["std", "rand/nightly"]
 nightly-core = ["core", "hashbrown/nightly"]
@@ -42,7 +42,6 @@ nightly-core = ["core", "hashbrown/nightly"]
 [dependencies]
 hashbrown = {version = "0.11.2", optional = true}
 rand = {version = "0.8.4", optional = true}
-chrono = {version = "0.4", optional = true, default-features = false}
 
 [dev-dependencies]
 scoped_threadpool = "0.1.*"
