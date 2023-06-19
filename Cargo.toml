@@ -1,6 +1,6 @@
 [package]
 name = "caches"
-version = "0.2.3"
+version = "0.2.4"
 authors = ["Al Liu <scygliu1@gmail.com>"]
 description = "This is a Rust implementation for popular caches (support no_std)."
 homepage = "https://github.com/al8n/caches-rs"
