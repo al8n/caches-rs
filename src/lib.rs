@@ -104,6 +104,9 @@ use core::fmt::{Debug, Formatter};
 use core::hash::{Hash, Hasher};
 
 pub mod lru;
+use alloc::boxed::Box;
+use alloc::string::String;
+use alloc::vec::Vec;
 pub use lru::{
     AdaptiveCache, AdaptiveCacheBuilder, LRUCache, RawLRU, SegmentedCache, SegmentedCacheBuilder,
     TwoQueueCache, TwoQueueCacheBuilder,
@@ -146,6 +149,25 @@ impl<K: PartialEq> PartialEq for KeyRef<K> {
 }
 
 impl<K: Eq> Eq for KeyRef<K> {}
+
+impl<T> Borrow<[T]> for KeyRef<Vec<T>> {
+    fn borrow(&self) -> &[T] {
+        unsafe { (*self.k).borrow() }
+    }
+}
+
+impl<T: ?Sized> Borrow<T> for KeyRef<Box<T>> {
+    fn borrow(&self) -> &T {
+        unsafe { (*self.k).borrow() }
+    }
+}
+
+impl Borrow<str> for KeyRef<String> {
+    fn borrow(&self) -> &str {
+        unsafe { (*self.k).borrow() }
+    }
+}
+
 
 cfg_nightly_hidden_doc!(
     pub auto trait NotKeyRef {}
