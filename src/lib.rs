@@ -90,7 +90,7 @@
 #![cfg_attr(docsrs, allow(unused_attributes))]
 #![cfg_attr(feature = "nightly", feature(negative_impls, auto_traits))]
 #![deny(missing_docs)]
-#![allow(clippy::blocks_in_if_conditions)]
+#![allow(clippy::blocks_in_if_conditions, clippy::enum_variant_names)]
 
 extern crate alloc;
 
