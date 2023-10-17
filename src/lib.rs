@@ -115,6 +115,12 @@ pub use cache_api::{Cache, ResizableCache};
 pub mod lfu;
 pub use lfu::{WTinyLFUCache, WTinyLFUCacheBuilder};
 
+#[cfg(feature = "std")]
+use std::collections::{HashMap, HashSet};
+
+#[cfg(not(feature = "std"))]
+use hashbrown::{HashMap, HashSet};
+
 #[macro_use]
 mod macros;
 

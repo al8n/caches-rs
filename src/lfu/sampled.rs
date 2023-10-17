@@ -3,15 +3,12 @@
 //!
 //! [Dgraph's ristretto]: https://github.com/dgraph-io/ristretto/blob/master/policy.go
 use crate::lfu::{DefaultKeyHasher, KeyHasher};
-use crate::{import_hashbrown, import_std, DefaultHashBuilder, KeyRef};
+use crate::{DefaultHashBuilder, HashMap, KeyRef};
 use alloc::vec::Vec;
 use core::borrow::Borrow;
 use core::hash::{BuildHasher, Hash};
 use core::marker::PhantomData;
 use core::sync::atomic::{AtomicI64, Ordering};
-
-import_hashbrown!(HashMap);
-import_std!(HashMap);
 
 /// DEFAULT_SAMPLES is the number of items to sample when looking at eviction
 /// candidates. 5 seems to be the most optimal number [citation needed].

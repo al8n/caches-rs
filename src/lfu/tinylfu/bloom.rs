@@ -5,7 +5,7 @@
 //! I claim no additional copyright over the original implementation.
 use alloc::{vec, vec::Vec};
 
-const LN_2: f64 = std::f64::consts::LN_2;
+const LN_2: f64 = core::f64::consts::LN_2;
 
 struct Size {
     size: u64,

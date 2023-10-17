@@ -1,23 +1,5 @@
 #[macro_export]
 #[doc(hidden)]
-macro_rules! import_hashbrown {
-    ($($t:ident),*) => {
-        #[cfg(feature = "hashbrown")]
-        use hashbrown::{$($t),*,};
-    }
-}
-
-#[macro_export]
-#[doc(hidden)]
-macro_rules! import_std {
-    ($($t:ident),*) => {
-        #[cfg(not(feature = "hashbrown"))]
-        use std::collections::{$($t),*,};
-    }
-}
-
-#[macro_export]
-#[doc(hidden)]
 macro_rules! cfg_not_nightly {
     ($($item:item)*) => {
         $(
