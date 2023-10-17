@@ -2,10 +2,12 @@
 //!
 //! This module contains LFU based caches, [`WTinyLFUCache`], [`TinyLFU`] and [`SampledLFU`].
 //!
-pub mod sampled;
-pub mod tinylfu;
-mod wtinylfu;
+mod sampled;
+pub use sampled::SampledLFU;
+mod tinylfu;
+pub use tinylfu::TinyLFU;
 
+mod wtinylfu;
 pub use wtinylfu::{WTinyLFUCache, WTinyLFUCacheBuilder};
 
 use crate::{DefaultHashBuilder, KeyRef};

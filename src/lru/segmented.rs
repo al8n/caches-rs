@@ -188,7 +188,7 @@ impl<K: Hash + Eq, V> SegmentedCache<K, V> {
 }
 
 impl<K: Hash + Eq, V, FH: BuildHasher, RH: BuildHasher> SegmentedCache<K, V, FH, RH> {
-    /// Create a [`AdaptiveCache`] from [`SegmentedCacheBuilder`].
+    /// Create a [`SegmentedCache`] from [`SegmentedCacheBuilder`].
     ///
     /// # Example
     /// ```rust

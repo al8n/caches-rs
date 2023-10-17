@@ -200,7 +200,7 @@ impl<K: Hash + Eq, KH: KeyHasher<K>> TinyLFU<K, KH> {
         keys.iter().for_each(|k| self.increment(k))
     }
 
-    /// increment multiple hashed keys, for details, please see [`increment_hash`].
+    /// increment multiple hashed keys, for details, please see [`increment_keys`].
     ///
     /// [`increment_hashed_key`]: struct.TinyLFU.method.increment_hashed_key.html
     pub fn increment_hashed_keys(&mut self, khs: &[u64]) {

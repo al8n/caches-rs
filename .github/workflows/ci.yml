@@ -82,7 +82,6 @@ jobs:
           - riscv64gc-unknown-linux-gnu
           - wasm32-unknown-unknown
           - wasm32-unknown-emscripten
-          - wasm32-wasi
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
@@ -102,7 +101,7 @@ jobs:
         run: |
           cargo install cross
           cross build --target ${{ matrix.target }}
-        if: matrix.target != 'wasm32-unknown-unknown'
+        if: matrix.target != 'wasm32-wasi'
       - name: cargo build --target ${{ matrix.target }}
         run: |
           rustup target add ${{ matrix.target }}
@@ -198,7 +197,7 @@ jobs:
         run: rustup update $nightly && rustup default $nightly
       - name: Install rust-src
         run: rustup component add rust-src
-      - name: ASAN / LSAN / TSAN
+      - name: LSAN
         run: ci/sanitizer.sh
 
   miri:

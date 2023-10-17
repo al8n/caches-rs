@@ -38,7 +38,7 @@ getrandom = { version = "0.2", features = ["js"] }
 [features]
 default = ["std"]
 std = ["rand", "rand/std", "rand/std_rng"]
-# nightly = ["rand/nightly"]
+nightly = ["rand/nightly"]
 
 [dependencies]
 hashbrown = { version = "0.14", optional = true }

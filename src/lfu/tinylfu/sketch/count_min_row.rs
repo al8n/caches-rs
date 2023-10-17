@@ -1,6 +1,6 @@
 //! This mod implements Count Min Row.
 //!
-//! This file is a mechanical translation of the reference Golang code, available at https://github.com/dgryski/go-tinylfu/blob/master/cm4.go
+//! This file is a mechanical translation of the reference Golang code, available at [here](https://github.com/dgryski/go-tinylfu/blob/master/cm4.go)
 //!
 //! I claim no additional copyright over the original implementation.
 use alloc::fmt::format;
