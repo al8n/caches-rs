@@ -182,12 +182,12 @@ impl<RH: BuildHasher, FH: BuildHasher, GH: BuildHasher> TwoQueueCacheBuilder<RH,
         }
 
         let rr = self.recent_ratio.unwrap();
-        if rr < 0.0 || rr > 1.0 {
+        if !(0.0..=1.0).contains(&rr) {
             return Err(CacheError::InvalidRecentRatio(rr));
         }
 
         let gr = self.ghost_ratio.unwrap();
-        if gr < 0.0 || gr > 1.0 {
+        if !(0.0..=1.0).contains(&gr) {
             return Err(CacheError::InvalidGhostRatio(gr));
         }
 
@@ -353,11 +353,11 @@ impl<K: Hash + Eq, V> TwoQueueCache<K, V> {
             return Err(CacheError::InvalidSize(size));
         }
 
-        if rr < 0.0 || rr > 1.0 {
+        if !(0.0..=1.0).contains(&rr) {
             return Err(CacheError::InvalidRecentRatio(rr));
         }
 
-        if gr < 0.0 || gr > 1.0 {
+        if !(0.0..=1.0).contains(&gr) {
             return Err(CacheError::InvalidGhostRatio(gr));
         }
 
@@ -443,7 +443,7 @@ impl<K: Hash + Eq, V, RH: BuildHasher, FH: BuildHasher, GH: BuildHasher> Cache<K
 
         // Check if the value is recently used, and promote
         // the value into the frequent list
-        if let Some(_) = self
+        if self
             .recent
             // here we remove an entry from recent LRU if key exists
             .remove_and_return_ent(&key_ref)
@@ -455,7 +455,7 @@ impl<K: Hash + Eq, V, RH: BuildHasher, FH: BuildHasher, GH: BuildHasher> Cache<K
                 // the result will always be PutResult::Put
                 // because we have removed this entry from recent LRU
                 self.frequent.put_box(ent)
-            })
+            }).is_some()
         {
             return PutResult::Update(v);
         }
@@ -481,7 +481,7 @@ impl<K: Hash + Eq, V, RH: BuildHasher, FH: BuildHasher, GH: BuildHasher> Cache<K
                         Some(mut ent) => {
                             let ent_ptr = ent.as_mut();
                             unsafe {
-                                mem::swap(&mut v, &mut (*(*ent_ptr).val.as_mut_ptr()) as &mut V);
+                                mem::swap(&mut v, &mut (*ent_ptr.val.as_mut_ptr()) as &mut V);
                             }
                             self.frequent.put_box(ent);
                             PutResult::Update(v)
@@ -492,7 +492,7 @@ impl<K: Hash + Eq, V, RH: BuildHasher, FH: BuildHasher, GH: BuildHasher> Cache<K
                         self.ghost.detach(ent_ptr);
 
                         unsafe {
-                            mem::swap(&mut v, &mut (*(*ent_ptr).val.as_mut_ptr()) as &mut V);
+                            mem::swap(&mut v, &mut (*ent_ptr.val.as_mut_ptr()) as &mut V);
                             self.frequent.put_box(ent);
                             match rst {
                                 None => PutResult::Update(v),
@@ -509,7 +509,7 @@ impl<K: Hash + Eq, V, RH: BuildHasher, FH: BuildHasher, GH: BuildHasher> Cache<K
                 let ent_ptr = ent.as_mut();
                 self.ghost.detach(ent_ptr);
                 unsafe {
-                    mem::swap(&mut v, &mut (*(*ent_ptr).val.as_mut_ptr()) as &mut V);
+                    mem::swap(&mut v, &mut (*ent_ptr.val.as_mut_ptr()) as &mut V);
                 }
                 self.frequent.put_box(ent);
                 PutResult::Update(v)

@@ -159,9 +159,9 @@ impl<K: Hash + Eq, KH: KeyHasher<K>> TinyLFU<K, KH> {
     ///
     /// [TinyLFU: A Highly Efficient Cache Admission Policy §3.4.2]: https://arxiv.org/pdf/1512.00727.pdf
     pub fn estimate<Q>(&self, key: &Q) -> u64
-        where
-            KeyRef<K>: Borrow<Q>,
-            Q: Hash + Eq + ?Sized,
+    where
+        KeyRef<K>: Borrow<Q>,
+        Q: Hash + Eq + ?Sized,
     {
         let kh = self.hash_key(key);
         let mut hits = self.ctr.estimate(kh);
@@ -192,19 +192,19 @@ impl<K: Hash + Eq, KH: KeyHasher<K>> TinyLFU<K, KH> {
     /// increment multiple keys, for details, please see [`increment`].
     ///
     /// [`increment`]: struct.TinyLFU.method.increment.html
-    pub fn increment_keys<'a, Q>(&mut self, keys: &[&'a Q])
+    pub fn increment_keys<Q>(&mut self, keys: &[&Q])
     where
         KeyRef<K>: Borrow<Q>,
         Q: Hash + Eq + ?Sized,
     {
-        keys.into_iter().for_each(|k| self.increment(k))
+        keys.iter().for_each(|k| self.increment(k))
     }
 
     /// increment multiple hashed keys, for details, please see [`increment_hash`].
     ///
     /// [`increment_hashed_key`]: struct.TinyLFU.method.increment_hashed_key.html
     pub fn increment_hashed_keys(&mut self, khs: &[u64]) {
-        khs.into_iter().for_each(|k| self.increment_hashed_key(*k))
+        khs.iter().for_each(|k| self.increment_hashed_key(*k))
     }
 
     /// See [TinyLFU: A Highly Efficient Cache Admission Policy] §3.2
@@ -275,9 +275,9 @@ impl<K: Hash + Eq, KH: KeyHasher<K>> TinyLFU<K, KH> {
     /// `contains` checks if bit(s) for entry is/are set,
     /// returns true if the hash was added to the TinyLFU.
     pub fn contains<Q>(&self, key: &Q) -> bool
-        where
-            KeyRef<K>: Borrow<Q>,
-            Q: Hash + Eq + ?Sized,
+    where
+        KeyRef<K>: Borrow<Q>,
+        Q: Hash + Eq + ?Sized,
     {
         let kh = self.hash_key(key);
         self.doorkeeper.contains(kh)
@@ -290,80 +290,64 @@ impl<K: Hash + Eq, KH: KeyHasher<K>> TinyLFU<K, KH> {
     }
 
     /// `eq` compares `a` and `b`, returns if `a`'s counter is equal to `b`'s counter.
-    pub fn eq<'a, 'b, Q>(&'_ self, a: &'a Q, b: &'b Q) -> bool
-        where
-            KeyRef<K>: Borrow<Q>,
-            Q: Hash + Eq + ?Sized,
+    pub fn eq<Q>(&'_ self, a: &Q, b: &Q) -> bool
+    where
+        KeyRef<K>: Borrow<Q>,
+        Q: Hash + Eq + ?Sized,
     {
         let (a_ctr, b_ctr) = self.compare_helper(a, b);
 
-        if a_ctr == b_ctr {
-            true
-        } else {
-            false
-        }
+        a_ctr == b_ctr
     }
 
     /// `le` compares `a` and `b`, returns if `a`'s counter is less or equal to `b`'s counter.
-    pub fn le<'a, 'b, Q>(&'_ self, a: &'a Q, b: &'b Q) -> bool
-        where
-            KeyRef<K>: Borrow<Q>,
-            Q: Hash + Eq + ?Sized,  {
+    pub fn le<Q>(&'_ self, a: &Q, b: &Q) -> bool
+    where
+        KeyRef<K>: Borrow<Q>,
+        Q: Hash + Eq + ?Sized,
+    {
         let (a_ctr, b_ctr) = self.compare_helper(a, b);
 
-        if a_ctr <= b_ctr {
-            true
-        } else {
-            false
-        }
+        a_ctr <= b_ctr
     }
 
     /// `lt` compares `a` and `b`, returns if `a`'s counter is less than `b`'s counter.
-    pub fn lt<'a, 'b, Q>(&'_ self, a: &'a Q, b: &'b Q) -> bool
-        where
-            KeyRef<K>: Borrow<Q>,
-            Q: Hash + Eq + ?Sized,  {
+    pub fn lt<Q>(&'_ self, a: &Q, b: &Q) -> bool
+    where
+        KeyRef<K>: Borrow<Q>,
+        Q: Hash + Eq + ?Sized,
+    {
         let (a_ctr, b_ctr) = self.compare_helper(a, b);
 
-        if a_ctr < b_ctr {
-            true
-        } else {
-            false
-        }
+        a_ctr < b_ctr
     }
 
     /// `gt` compares `a` and `b`, returns if `a`'s counter is greater than `b`'s counter.
-    pub fn gt<'a, 'b, Q>(&'_ self, a: &'a Q, b: &'b Q) -> bool
-        where
-            KeyRef<K>: Borrow<Q>,
-            Q: Hash + Eq + ?Sized,  {
+    pub fn gt<Q>(&'_ self, a: &Q, b: &Q) -> bool
+    where
+        KeyRef<K>: Borrow<Q>,
+        Q: Hash + Eq + ?Sized,
+    {
         let (a_ctr, b_ctr) = self.compare_helper(a, b);
 
-        if a_ctr > b_ctr {
-            true
-        } else {
-            false
-        }
+        a_ctr > b_ctr
     }
 
     /// `ge` compares `a` and `b`, returns if `a`'s counter is greater or equal to `b`'s counter.
-    pub fn ge<'a, 'b, Q>(&'_ self, a: &'a Q, b: &'b Q) -> bool
-        where
-            KeyRef<K>: Borrow<Q>,
-            Q: Hash + Eq + ?Sized,  {
+    pub fn ge<Q>(&'_ self, a: &Q, b: &Q) -> bool
+    where
+        KeyRef<K>: Borrow<Q>,
+        Q: Hash + Eq + ?Sized,
+    {
         let (a_ctr, b_ctr) = self.compare_helper(a, b);
 
-        if a_ctr >= b_ctr {
-            true
-        } else {
-            false
-        }
+        a_ctr >= b_ctr
     }
 
-    fn compare_helper<'a, 'b, Q>(&'_ self, a: &'a Q, b: &'b Q) -> (u64, u64)
-        where
-            KeyRef<K>: Borrow<Q>,
-            Q: Hash + Eq + ?Sized,
+    fn compare_helper<Q>(&'_ self, a: &Q, b: &Q) -> (u64, u64)
+    where
+        KeyRef<K>: Borrow<Q>,
+        Q: Hash + Eq + ?Sized,
     {
         let akh = self.hash_key(a);
         let mut a_ctr = 0;

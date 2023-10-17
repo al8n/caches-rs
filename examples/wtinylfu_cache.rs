@@ -1,4 +1,4 @@
-use caches::{Cache, WTinyLFUCache, PutResult};
+use caches::{Cache, PutResult, WTinyLFUCache};
 
 fn main() {
     let mut cache = WTinyLFUCache::with_sizes(1, 2, 2, 5).unwrap();

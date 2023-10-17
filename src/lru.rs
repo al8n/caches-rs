@@ -137,7 +137,7 @@ use core::mem;
 pub type LRUCache<K, V, S> = RawLRU<K, V, DefaultEvictCallback, S>;
 
 unsafe fn swap_value<K, V>(v: &mut V, ent: &mut EntryNode<K, V>) {
-    mem::swap(v, &mut (*(*ent).val.as_mut_ptr()) as &mut V);
+    mem::swap(v, &mut (*ent.val.as_mut_ptr()) as &mut V);
 }
 
 fn debox<K: Hash + Eq, V>(bks: &mut Box<EntryNode<K, V>>) -> *mut EntryNode<K, V> {

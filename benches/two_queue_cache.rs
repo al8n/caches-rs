@@ -7,7 +7,7 @@ use std::hash::BuildHasherDefault;
 
 fn bench_two_queue_cache_default_hasher(c: &mut Criterion) {
     c.bench_function("Test TwoQueueCache freq default hasher", move |b| {
-        let cases = 1000_000;
+        let cases = 1_000_000;
         b.iter_batched(
             || {
                 let mut rng = thread_rng();
@@ -43,7 +43,7 @@ fn bench_two_queue_cache_default_hasher(c: &mut Criterion) {
 
 fn bench_two_queue_cache_fx_hasher(c: &mut Criterion) {
     c.bench_function("Test TwoQueueCache freq FX hasher", move |b| {
-        let cases = 1000_000;
+        let cases = 1_000_000;
         b.iter_batched(
             || {
                 let mut rng = thread_rng();
@@ -84,7 +84,7 @@ fn bench_two_queue_cache_fx_hasher(c: &mut Criterion) {
 
 fn bench_two_queue_cache_fnv_hasher(c: &mut Criterion) {
     c.bench_function("Test TwoQueueCache freq FNV hasher", move |b| {
-        let cases = 1000_000;
+        let cases = 1_000_000;
         b.iter_batched(
             || {
                 let mut rng = thread_rng();

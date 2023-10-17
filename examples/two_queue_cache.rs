@@ -1,10 +1,12 @@
-use caches::{Cache, TwoQueueCache, PutResult};
+use caches::{Cache, PutResult, TwoQueueCache};
 
 fn main() {
     let mut cache = TwoQueueCache::new(4).unwrap();
 
     // Add 1,2,3,4,
-    (1..=4).for_each(|i| { assert_eq!(cache.put(i, i), PutResult::Put);});
+    (1..=4).for_each(|i| {
+        assert_eq!(cache.put(i, i), PutResult::Put);
+    });
 
     // Add 5 -> Evict 1 to ghost LRU
     assert_eq!(cache.put(5, 5), PutResult::Put);
@@ -30,7 +32,13 @@ fn main() {
 
     // Add 6, should put the entry from ghost LRU to freq LRU, and evicted one
     // entry
-    assert_eq!(cache.put(6, 66), PutResult::EvictedAndUpdate { evicted: (5, 5), update: 6});
+    assert_eq!(
+        cache.put(6, 66),
+        PutResult::EvictedAndUpdate {
+            evicted: (5, 5),
+            update: 6
+        }
+    );
     assert_eq!(cache.recent_len(), 0);
     assert_eq!(cache.ghost_len(), 1);
     assert_eq!(cache.frequent_len(), 4);

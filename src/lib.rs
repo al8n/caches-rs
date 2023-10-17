@@ -90,6 +90,7 @@
 #![cfg_attr(docsrs, allow(unused_attributes))]
 #![cfg_attr(feature = "nightly", feature(negative_impls, auto_traits))]
 #![deny(missing_docs)]
+#![allow(clippy::blocks_in_if_conditions)]
 
 extern crate alloc;
 
@@ -104,9 +105,6 @@ use core::fmt::{Debug, Formatter};
 use core::hash::{Hash, Hasher};
 
 pub mod lru;
-use alloc::boxed::Box;
-use alloc::string::String;
-use alloc::vec::Vec;
 pub use lru::{
     AdaptiveCache, AdaptiveCacheBuilder, LRUCache, RawLRU, SegmentedCache, SegmentedCacheBuilder,
     TwoQueueCache, TwoQueueCacheBuilder,
@@ -150,24 +148,32 @@ impl<K: PartialEq> PartialEq for KeyRef<K> {
 
 impl<K: Eq> Eq for KeyRef<K> {}
 
-impl<T> Borrow<[T]> for KeyRef<Vec<T>> {
-    fn borrow(&self) -> &[T] {
-        unsafe { (*self.k).borrow() }
+#[cfg(not(feature = "nightly"))]
+mod sealed {
+    use super::KeyRef;
+    use core::borrow::Borrow;
+    use alloc::boxed::Box;
+    use alloc::string::String;
+    use alloc::vec::Vec;
+
+    impl<T> Borrow<[T]> for KeyRef<Vec<T>> {
+        fn borrow(&self) -> &[T] {
+            unsafe { (*self.k).borrow() }
+        }
+    }
+
+    impl<T: ?Sized> Borrow<T> for KeyRef<Box<T>> {
+        fn borrow(&self) -> &T {
+            unsafe { (*self.k).borrow() }
+        }
+    }
+
+    impl Borrow<str> for KeyRef<String> {
+        fn borrow(&self) -> &str {
+            unsafe { (*self.k).borrow() }
+        }
     }
 }
-
-impl<T: ?Sized> Borrow<T> for KeyRef<Box<T>> {
-    fn borrow(&self) -> &T {
-        unsafe { (*self.k).borrow() }
-    }
-}
-
-impl Borrow<str> for KeyRef<String> {
-    fn borrow(&self) -> &str {
-        unsafe { (*self.k).borrow() }
-    }
-}
-
 
 cfg_nightly_hidden_doc!(
     pub auto trait NotKeyRef {}
@@ -289,10 +295,7 @@ pub enum PutResult<K, V> {
 impl<K: PartialEq, V: PartialEq> PartialEq for PutResult<K, V> {
     fn eq(&self, other: &Self) -> bool {
         match self {
-            PutResult::Put => match other {
-                PutResult::Put => true,
-                _ => false,
-            },
+            PutResult::Put => matches!(other, PutResult::Put),
             PutResult::Update(old_val) => match other {
                 PutResult::Update(v) => *v == *old_val,
                 _ => false,
@@ -306,8 +309,8 @@ impl<K: PartialEq, V: PartialEq> PartialEq for PutResult<K, V> {
                     evicted: other_evicted,
                     update: other_update,
                 } => {
-                    (*evicted).0 == (*other_evicted).0
-                        && (*evicted).1 == (*other_evicted).1
+                    evicted.0 == other_evicted.0
+                        && evicted.1 == other_evicted.1
                         && *update == *other_update
                 }
                 _ => false,
@@ -326,7 +329,7 @@ impl<K: Debug, V: Debug> Debug for PutResult<K, V> {
             PutResult::Evicted { key: k, value: v } => {
                 write!(f, "PutResult::Evicted {{key: {:?}, val: {:?}}}", *k, *v)
             }
-            PutResult::EvictedAndUpdate { evicted, update } => write!(f, "PutResult::EvictedAndUpdate {{ evicted: {{key: {:?}, value: {:?}}}, update: {:?} }}", (*evicted).0, (*evicted).1, *update),
+            PutResult::EvictedAndUpdate { evicted, update } => write!(f, "PutResult::EvictedAndUpdate {{ evicted: {{key: {:?}, value: {:?}}}, update: {:?} }}", evicted.0, evicted.1, *update),
         }
     }
 }

@@ -328,7 +328,7 @@ impl<K: Hash + Eq, V, RH: BuildHasher, REH: BuildHasher, FH: BuildHasher, FEH: B
         let key_ref = KeyRef { k: &k };
         // check if the value is contained in recent, and potentially
         // promote it to frequent
-        if let Some(_) = self
+        if self
             .recent
             // here we remove an entry from recent LRU if key exists
             .remove_and_return_ent(&key_ref)
@@ -340,7 +340,7 @@ impl<K: Hash + Eq, V, RH: BuildHasher, REH: BuildHasher, FH: BuildHasher, FEH: B
                 // the result will always be PutResult::Put
                 // because we have removed this entry from recent LRU
                 self.frequent.put_box(ent);
-            })
+            }).is_some()
         {
             return PutResult::Update(v);
         }

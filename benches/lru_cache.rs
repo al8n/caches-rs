@@ -7,7 +7,7 @@ use std::hash::BuildHasherDefault;
 
 fn bench_lru_cache_default_hasher(c: &mut Criterion) {
     c.bench_function("Test LRUCache freq default hasher", move |b| {
-        let cases = 1000_000;
+        let cases = 1_000_000;
         b.iter_batched(
             || {
                 let mut rng = thread_rng();
@@ -43,7 +43,7 @@ fn bench_lru_cache_default_hasher(c: &mut Criterion) {
 
 fn bench_lru_cache_fx_hasher(c: &mut Criterion) {
     c.bench_function("Test LRUCache freq FX hasher", move |b| {
-        let cases = 1000_000;
+        let cases = 1_000_000;
         b.iter_batched(
             || {
                 let mut rng = thread_rng();
@@ -80,7 +80,7 @@ fn bench_lru_cache_fx_hasher(c: &mut Criterion) {
 
 fn bench_lru_cache_fnv_hasher(c: &mut Criterion) {
     c.bench_function("Test LRUCache freq FNV hasher", move |b| {
-        let cases = 1000_000;
+        let cases = 1_000_000;
         b.iter_batched(
             || {
                 let mut rng = thread_rng();

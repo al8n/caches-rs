@@ -1,4 +1,4 @@
-use caches::{Cache, AdaptiveCache};
+use caches::{AdaptiveCache, Cache};
 
 fn main() {
     let mut cache = AdaptiveCache::new(4).unwrap();

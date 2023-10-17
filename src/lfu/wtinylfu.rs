@@ -2,7 +2,7 @@ mod error;
 pub use error::WTinyLFUError;
 
 use crate::lfu::{
-    tinylfu::{TinyLFUError, TinyLFU, TinyLFUBuilder, DEFAULT_FALSE_POSITIVE_RATIO},
+    tinylfu::{TinyLFU, TinyLFUBuilder, TinyLFUError, DEFAULT_FALSE_POSITIVE_RATIO},
     DefaultKeyHasher, KeyHasher,
 };
 use crate::lru::{SegmentedCache, SegmentedCacheBuilder};
@@ -294,7 +294,7 @@ impl<K: Hash + Eq, KH: KeyHasher<K>, FH: BuildHasher, RH: BuildHasher, WH: Build
 /// # Example
 /// ```rust
 /// use caches::{WTinyLFUCache, PutResult, Cache};
-/// 
+///
 /// let mut cache = WTinyLFUCache::with_sizes(1, 2, 2, 5).unwrap();
 /// assert_eq!(cache.cap(), 5);
 /// assert_eq!(cache.window_cache_cap(), 1);
@@ -464,10 +464,9 @@ impl<K: Hash + Eq, V, KH: KeyHasher<K>, FH: BuildHasher, RH: BuildHasher, WH: Bu
     /// ```
     ///
     /// [`PutResult`]: struct.PutResult.html
-    fn put(&mut self, k: K, v: V) -> PutResult<K, V>
-    {
+    fn put(&mut self, k: K, v: V) -> PutResult<K, V> {
         #[cfg(any(feature = "nightly", feature = "nightly-core"))]
-        let new_key_ref = &KeyRef {k: &k};
+        let new_key_ref = &KeyRef { k: &k };
 
         #[cfg(not(any(feature = "nightly", feature = "nightly-core")))]
         let new_key_ref = &k;
@@ -483,7 +482,7 @@ impl<K: Hash + Eq, V, KH: KeyHasher<K>, FH: BuildHasher, RH: BuildHasher, WH: Bu
                     PutResult::Update(v) => PutResult::Update(v),
                     PutResult::Evicted { key, value } => {
                         #[cfg(any(feature = "nightly", feature = "nightly-core"))]
-                        let evicted_key_ref = &KeyRef{k: &key};
+                        let evicted_key_ref = &KeyRef { k: &key };
 
                         #[cfg(not(any(feature = "nightly", feature = "nightly-core")))]
                         let evicted_key_ref = &key;
@@ -496,10 +495,10 @@ impl<K: Hash + Eq, V, KH: KeyHasher<K>, FH: BuildHasher, RH: BuildHasher, WH: Bu
                             None => self.slru.put(key, value),
                             Some((lruk, _)) => {
                                 #[cfg(any(feature = "nightly", feature = "nightly-core"))]
-                                    let lru_key_ref = &KeyRef{k: lruk};
+                                let lru_key_ref = &KeyRef { k: lruk };
 
                                 #[cfg(not(any(feature = "nightly", feature = "nightly-core")))]
-                                    let lru_key_ref = lruk;
+                                let lru_key_ref = lruk;
 
                                 if self.tinylfu.lt(evicted_key_ref, lru_key_ref) {
                                     PutResult::Evicted { key, value }

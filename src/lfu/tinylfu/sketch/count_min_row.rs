@@ -18,7 +18,7 @@ impl CountMinRow {
     }
 
     pub(crate) fn get(&self, i: u64) -> u8 {
-        ((self[(i / 2) as usize] >> ((i & 1) * 4)) as u8) & 0x0f
+        (self[(i / 2) as usize] >> ((i & 1) * 4)) & 0x0f
     }
 
     pub(crate) fn increment(&mut self, i: u64) {
@@ -30,7 +30,7 @@ impl CountMinRow {
         let v = (self[idx] >> shift) & 0x0f;
         // only increment if not max value (overflow wrap is bad for LFU).
         if v < 15 {
-            self[idx] += 1 << shift;
+            self.0[idx] += 1 << shift;
         }
     }
 

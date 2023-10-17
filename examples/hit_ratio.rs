@@ -1,11 +1,11 @@
-use caches::{AdaptiveCache, Cache, LRUCache, TwoQueueCache, WTinyLFUCache, SegmentedCache};
-use rand::{thread_rng, Rng};
+use caches::{AdaptiveCache, Cache, LRUCache, SegmentedCache, TwoQueueCache, WTinyLFUCache};
 use rand::seq::SliceRandom;
+use rand::{thread_rng, Rng};
 
 extern crate cascara;
 
-use cascara::{Cache as CascaraCache, OnEvict};
-use std::time::Duration;
+use cascara::{Cache as CascaraCache};
+
 
 fn cascara_cache(cases: Vec<(usize, Vec<u64>)>) -> Vec<(usize, f64)> {
     let mut result: Vec<(usize, f64)> = Vec::with_capacity(cases.len());
@@ -16,27 +16,26 @@ fn cascara_cache(cases: Vec<(usize, Vec<u64>)>) -> Vec<(usize, f64)> {
         let mut hit = 0u64;
         let mut miss = 0u64;
 
-        (0..(*total).0).for_each(|v| {
-            let k = (*total).1[v];
+        (0..total.0).for_each(|v| {
+            let k = total.1[v];
             let _ = l.insert(k, k);
         });
 
-        (0..(*total).0).for_each(|v| {
-            let k = (*total).1[v];
-            if let Some(_) = l.get(&k) {
+        (0..total.0).for_each(|v| {
+            let k = total.1[v];
+            if l.get(&k).is_some() {
                 hit += 1;
             } else {
                 miss += 1;
             }
         });
 
-        let hit_ratio = ((hit as f64) / ((*total).0 as f64)) * 100.0;
-        result.push(((*total).0, hit_ratio));
+        let hit_ratio = ((hit as f64) / (total.0 as f64)) * 100.0;
+        result.push((total.0, hit_ratio));
     });
 
     result
 }
-
 
 fn lru_cache(cases: Vec<(usize, Vec<u64>)>) -> Vec<(usize, f64)> {
     let mut result: Vec<(usize, f64)> = Vec::with_capacity(cases.len());
@@ -47,22 +46,22 @@ fn lru_cache(cases: Vec<(usize, Vec<u64>)>) -> Vec<(usize, f64)> {
         let mut hit = 0u64;
         let mut miss = 0u64;
 
-        (0..(*total).0).for_each(|v| {
-            let k = (*total).1[v];
+        (0..total.0).for_each(|v| {
+            let k = total.1[v];
             let _ = l.put(k, k);
         });
 
-        (0..(*total).0).for_each(|v| {
-            let k = (*total).1[v];
-            if let Some(_) = l.get(&k) {
+        (0..total.0).for_each(|v| {
+            let k = total.1[v];
+            if l.get(&k).is_some() {
                 hit += 1;
             } else {
                 miss += 1;
             }
         });
 
-        let hit_ratio = ((hit as f64) / ((*total).0 as f64)) * 100.0;
-        result.push(((*total).0, hit_ratio));
+        let hit_ratio = ((hit as f64) / (total.0 as f64)) * 100.0;
+        result.push((total.0, hit_ratio));
     });
 
     result
@@ -77,22 +76,22 @@ fn two_queue_cache(cases: Vec<(usize, Vec<u64>)>) -> Vec<(usize, f64)> {
         let mut hit = 0u64;
         let mut miss = 0u64;
 
-        (0..(*total).0).for_each(|v| {
-            let k = (*total).1[v];
+        (0..total.0).for_each(|v| {
+            let k = total.1[v];
             let _ = l.put(k, k);
         });
 
-        (0..(*total).0).for_each(|v| {
-            let k = (*total).1[v];
-            if let Some(_) = l.get(&k) {
+        (0..total.0).for_each(|v| {
+            let k = total.1[v];
+            if l.get(&k).is_some() {
                 hit += 1;
             } else {
                 miss += 1;
             }
         });
 
-        let hit_ratio = ((hit as f64) / ((*total).0 as f64)) * 100.0;
-        result.push(((*total).0, hit_ratio));
+        let hit_ratio = ((hit as f64) / (total.0 as f64)) * 100.0;
+        result.push((total.0, hit_ratio));
     });
 
     result
@@ -107,22 +106,22 @@ fn arc_cache(cases: Vec<(usize, Vec<u64>)>) -> Vec<(usize, f64)> {
         let mut hit = 0u64;
         let mut miss = 0u64;
 
-        (0..(*total).0).for_each(|v| {
-            let k = (*total).1[v];
+        (0..total.0).for_each(|v| {
+            let k = total.1[v];
             let _ = l.put(k, k);
         });
 
-        (0..(*total).0).for_each(|v| {
-            let k = (*total).1[v];
-            if let Some(_) = l.get(&k) {
+        (0..total.0).for_each(|v| {
+            let k = total.1[v];
+            if l.get(&k).is_some() {
                 hit += 1;
             } else {
                 miss += 1;
             }
         });
 
-        let hit_ratio = ((hit as f64) / ((*total).0 as f64)) * 100.0;
-        result.push(((*total).0, hit_ratio));
+        let hit_ratio = ((hit as f64) / (total.0 as f64)) * 100.0;
+        result.push((total.0, hit_ratio));
     });
 
     result
@@ -137,22 +136,22 @@ fn segmented_cache(cases: Vec<(usize, Vec<u64>)>) -> Vec<(usize, f64)> {
         let mut hit = 0u64;
         let mut miss = 0u64;
 
-        (0..(*total).0).for_each(|v| {
-            let k = (*total).1[v];
+        (0..total.0).for_each(|v| {
+            let k = total.1[v];
             let _ = l.put(k, k);
         });
 
-        (0..(*total).0).for_each(|v| {
-            let k = (*total).1[v];
-            if let Some(_) = l.get(&k) {
+        (0..total.0).for_each(|v| {
+            let k = total.1[v];
+            if l.get(&k).is_some() {
                 hit += 1;
             } else {
                 miss += 1;
             }
         });
 
-        let hit_ratio = ((hit as f64) / ((*total).0 as f64)) * 100.0;
-        result.push(((*total).0, hit_ratio));
+        let hit_ratio = ((hit as f64) / (total.0 as f64)) * 100.0;
+        result.push((total.0, hit_ratio));
     });
 
     result
@@ -167,22 +166,22 @@ fn wtinylfu_cache(cases: Vec<(usize, Vec<u64>)>) -> Vec<(usize, f64)> {
         let mut hit = 0u64;
         let mut miss = 0u64;
 
-        (0..(*total).0).for_each(|v| {
-            let k = (*total).1[v];
+        (0..total.0).for_each(|v| {
+            let k = total.1[v];
             let _ = l.put(k, k);
         });
 
-        (0..(*total).0).for_each(|v| {
-            let k = (*total).1[v];
-            if let Some(_) = l.get(&k) {
+        (0..total.0).for_each(|v| {
+            let k = total.1[v];
+            if l.get(&k).is_some() {
                 hit += 1;
             } else {
                 miss += 1;
             }
         });
 
-        let hit_ratio = ((hit as f64) / ((*total).0 as f64)) * 100.0;
-        result.push(((*total).0, hit_ratio));
+        let hit_ratio = ((hit as f64) / (total.0 as f64)) * 100.0;
+        result.push((total.0, hit_ratio));
     });
 
     result
@@ -195,14 +194,16 @@ fn main() {
         .map(|total| {
             let total = *total;
             let mut rng = thread_rng();
-            let freq_nums: Vec<Vec<u64>> = (0..100u64).map(|i| {
-                let ctrs = rng.gen::<u8>() as u64;
-                vec![i; (i * ctrs) as usize]
-            }).collect();
+            let freq_nums: Vec<Vec<u64>> = (0..100u64)
+                .map(|i| {
+                    let ctrs = rng.gen::<u8>() as u64;
+                    vec![i; (i * ctrs) as usize]
+                })
+                .collect();
 
             let mut nums = Vec::with_capacity(total);
             freq_nums.into_iter().for_each(|v| {
-               nums.extend(v);
+                nums.extend(v);
             });
 
             let random_nums: Vec<u64> = (0..(total - nums.len()) * 2)
