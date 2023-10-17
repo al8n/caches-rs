@@ -667,6 +667,7 @@ mod test {
     use crate::{Cache, PutResult};
 
     #[test]
+    #[cfg_attr(miri, ignore)]
     fn test_wtinylfu() {
         let mut cache = WTinyLFUCache::with_sizes(1, 2, 2, 5).unwrap();
         assert_eq!(cache.cap(), 5);

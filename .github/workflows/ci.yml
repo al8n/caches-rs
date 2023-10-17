@@ -106,7 +106,7 @@ jobs:
         run: |
           rustup target add ${{ matrix.target }}
           cargo build --target ${{ matrix.target }}
-        if: matrix.target == 'wasm32-wasi' || matrix.target != 'wasm32-unknown-unknown'
+        if: matrix.target == 'wasm32-wasi' || matrix.target == 'wasm32-unknown-unknown'
 
   build:
     name: build
