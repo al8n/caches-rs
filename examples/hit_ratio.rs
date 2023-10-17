@@ -4,8 +4,7 @@ use rand::{thread_rng, Rng};
 
 extern crate cascara;
 
-use cascara::{Cache as CascaraCache};
-
+use cascara::Cache as CascaraCache;
 
 fn cascara_cache(cases: Vec<(usize, Vec<u64>)>) -> Vec<(usize, f64)> {
     let mut result: Vec<(usize, f64)> = Vec::with_capacity(cases.len());

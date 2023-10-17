@@ -340,7 +340,8 @@ impl<K: Hash + Eq, V, RH: BuildHasher, REH: BuildHasher, FH: BuildHasher, FEH: B
                 // the result will always be PutResult::Put
                 // because we have removed this entry from recent LRU
                 self.frequent.put_box(ent);
-            }).is_some()
+            })
+            .is_some()
         {
             return PutResult::Update(v);
         }

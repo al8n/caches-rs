@@ -32,12 +32,12 @@ The MSRV for this crate is 1.55.0.
 - std
     ```toml
     [dependencies]
-    caches = "0.2.0" 
+    caches = "0.2" 
     ```
 - no_std
     ```toml
     [dependencies]
-    caches = {version: "0.2.0", features: ["core"]}
+    caches = { version: "0.2", default-features = false }
     ```
 
 ## Usages

@@ -31,12 +31,12 @@
 //! - std
 //! ```toml
 //! [dependencies]
-//! caches = "0.2.0"
+//! caches = "0.2"
 //! ```
 //! - no_std
 //! ```toml
 //! [dependencies]
-//! caches = {version: "0.2.0", features: ["core"]}
+//! caches = { version: "0.2", default-features = false }
 //! ```
 //!
 //! ## Usages
@@ -151,10 +151,10 @@ impl<K: Eq> Eq for KeyRef<K> {}
 #[cfg(not(feature = "nightly"))]
 mod sealed {
     use super::KeyRef;
-    use core::borrow::Borrow;
     use alloc::boxed::Box;
     use alloc::string::String;
     use alloc::vec::Vec;
+    use core::borrow::Borrow;
 
     impl<T> Borrow<[T]> for KeyRef<Vec<T>> {
         fn borrow(&self) -> &[T] {
