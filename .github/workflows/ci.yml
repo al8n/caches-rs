@@ -60,10 +60,8 @@ jobs:
     - name: Install Rust
       # --no-self-update is necessary because the windows environment cannot self-update rustup.exe.
       run: rustup update stable --no-self-update && rustup default stable
-    - name: Install cargo-hack
-      run: cargo install cargo-hack
     - name: Apply clippy lints
-      run: cargo hack clippy --each-feature
+      run: cargo clippy
 
   # Run tests on some extra platforms
   cross:
@@ -105,12 +103,6 @@ jobs:
           cargo install cross
           cross build --target ${{ matrix.target }}
         if: matrix.target != 'wasm32-unknown-unknown'
-      # # WASM support
-      # - name: cargo build --target ${{ matrix.target }}
-      #   run: |
-      #     rustup target add ${{ matrix.target }}
-      #     cargo build --features js --target ${{ matrix.target }}
-      #   if: matrix.target == 'wasm32-unknown-unknown'
       # - name: cargo build --target ${{ matrix.target }}
       #   run: |
       #     rustup target add ${{ matrix.target }}
@@ -140,16 +132,14 @@ jobs:
           ${{ runner.os }}-build-
     - name: Install Rust
       # --no-self-update is necessary because the windows environment cannot self-update rustup.exe.
-      run: rustup update stable --no-self-update && rustup default stable
-    - name: Install cargo-hack
-      run: cargo install cargo-hack
+      run: rustup update stable --no-self-update && rustup default stable 
     - name: Cache ~/.cargo
       uses: actions/cache@v3
       with:
         path: ~/.cargo
         key: ${{ runner.os }}-coverage-dotcargo
     - name: Run build
-      run: cargo hack build --feature-powerset
+      run: cargo build
   
   test:
     name: test
@@ -175,15 +165,13 @@ jobs:
     - name: Install Rust
       # --no-self-update is necessary because the windows environment cannot self-update rustup.exe.
       run: rustup update stable --no-self-update && rustup default stable
-    - name: Install cargo-hack
-      run: cargo install cargo-hack
     - name: Cache ~/.cargo
       uses: actions/cache@v3
       with:
         path: ~/.cargo
         key: ${{ runner.os }}-coverage-dotcargo
     - name: Run test
-      run: cargo hack test --feature-powerset
+      run: cargo test
   
   sanitizer:
     name: sanitizer
@@ -210,8 +198,6 @@ jobs:
         run: rustup update $nightly && rustup default $nightly
       - name: Install rust-src
         run: rustup component add rust-src
-      - name: Install cargo-hack
-        run: cargo install cargo-hack
       - name: ASAN / LSAN / TSAN
         run: ci/sanitizer.sh
 
@@ -236,8 +222,6 @@ jobs:
           key: ${{ runner.os }}-miri-${{ hashFiles('**/Cargo.lock') }}
           restore-keys: |
             ${{ runner.os }}-miri-
-      - name: Install cargo-hack
-        run: cargo install cargo-hack
       - name: Miri
         run: ci/miri.sh 
   
@@ -296,8 +280,8 @@ jobs:
         with:
           toolchain: ${{ env.nightly }}
           override: true
-      - name: "doc --lib --all-features"
-        run: cargo doc --lib --no-deps --all-features
+      - name: "doc --lib"
+        run: cargo doc --lib --no-deps
         env:
           RUSTFLAGS: --cfg docsrs
           RUSTDOCFLAGS: --cfg docsrs -Dwarnings

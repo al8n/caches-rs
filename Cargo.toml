@@ -32,6 +32,9 @@ harness = false
 name = "wtinylfu_cache"
 harness = false
 
+[target.'cfg(target_family = "wasm")'.dependencies]
+getrandom = { version = "0.2", features = ["js"] }
+
 [features]
 default = ["std"]
 std = ["rand", "rand/std", "rand/std_rng"]
