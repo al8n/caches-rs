@@ -103,11 +103,11 @@ jobs:
           cargo install cross
           cross build --target ${{ matrix.target }}
         if: matrix.target != 'wasm32-unknown-unknown'
-      # - name: cargo build --target ${{ matrix.target }}
-      #   run: |
-      #     rustup target add ${{ matrix.target }}
-      #     cargo +nightly build --no-default-features --features alloc --target ${{ matrix.target }} -Z build-std=core,alloc
-      #   if: matrix.target == 'mips64-unknown-linux-gnuabi64'
+      - name: cargo build --target ${{ matrix.target }}
+        run: |
+          rustup target add ${{ matrix.target }}
+          cargo build --target ${{ matrix.target }}
+        if: matrix.target == 'wasm32-wasi'
 
   build:
     name: build

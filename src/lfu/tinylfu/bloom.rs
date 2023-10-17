@@ -1,9 +1,10 @@
 //! This mod implements a Simple Bloom Filter.
 //!
-//! This file is a mechanical translation of the reference Golang code, available at <https://github.com/dgraph-io/ristretto/blob/master/z/bbloom.go>
+//! This file is a mechanical translation of the reference Golang code, available at https://github.com/dgraph-io/ristretto/blob/master/z/bbloom.go
 //!
 //! I claim no additional copyright over the original implementation.
-use alloc::{vec, vec::Vec};
+use alloc::vec;
+use alloc::vec::Vec;
 
 const LN_2: f64 = core::f64::consts::LN_2;
 
@@ -44,11 +45,9 @@ fn calc_size_by_wrong_positives(num_entries: f64, wrongs: f64) -> EntriesLocs {
 }
 
 /// Bloom filter
-#[repr(C)]
 pub(crate) struct Bloom {
     bitset: Vec<u64>,
     elem_num: u64,
-    size_exp: u64,
     size: u64,
     set_locs: u64,
     shift: u64,
@@ -73,29 +72,14 @@ impl Bloom {
             bitset: vec![0; (size.size >> 6) as usize],
             elem_num: 0,
             size: size.size - 1,
-            size_exp: size.exp,
             set_locs: entries_locs.locs,
             shift: 64 - size.exp,
         }
     }
 
-    /// `size` makes Bloom filter with as bitset of size sz.
-    #[inline]
-    #[allow(dead_code)]
-    pub fn size(&mut self, sz: usize) {
-        self.bitset = vec![0; sz >> 6]
-    }
-
     /// `reset` resets the `Bloom` filter
     pub fn reset(&mut self) {
         self.bitset.iter_mut().for_each(|v| *v = 0);
-    }
-
-    /// Returns the exp of the size
-    #[inline]
-    #[allow(dead_code)]
-    pub fn size_exp(&self) -> u64 {
-        self.size_exp
     }
 
     /// `clear` clear the `Bloom` filter
@@ -104,18 +88,18 @@ impl Bloom {
     }
 
     /// `set` sets the bit[idx] of bitset
+    /// `set` sets the bit[idx] of bitset
     pub fn set(&mut self, idx: usize) {
-        let ptr = (self.bitset.as_mut_ptr() as usize + ((idx % 64) >> 3)) as *mut u8;
-        unsafe {
-            *ptr |= 1 << (idx % 8);
-        }
+        let array_idx = idx >> 6; // divide by 64 to get the index in the bitset array
+        let bit_idx = idx % 64; // get the bit position within the 64-bit integer
+        self.bitset[array_idx] |= 1u64 << bit_idx;
     }
 
     /// `is_set` checks if bit[idx] of bitset is set, returns true/false.
     pub fn is_set(&self, idx: usize) -> bool {
-        let ptr = (self.bitset.as_ptr() as usize + ((idx % 64) >> 3)) as *const u8;
-        let r = unsafe { *ptr >> (idx % 8) } & 1;
-        r == 1
+        let array_idx = idx >> 6; // divide by 64 to get the index in the bitset array
+        let bit_idx = idx % 64; // get the bit position within the 64-bit integer
+        (self.bitset[array_idx] & (1u64 << bit_idx)) != 0
     }
 
     /// `add` adds hash of a key to the bloom filter
@@ -152,27 +136,18 @@ impl Bloom {
             true
         }
     }
-
-    /// `total_size` returns the total size of the bloom filter.
-    #[allow(dead_code)]
-    #[inline]
-    pub fn total_size(&self) -> usize {
-        // The bl struct has 5 members and each one is 8 byte. The bitset is a
-        // uint64 byte slice.
-        self.bitset.len() * 8 + 5 * 8
-    }
 }
 
 #[cfg(test)]
 mod test {
-    use super::Bloom;
+    use crate::lfu::tinylfu::bloom::Bloom;
     use alloc::string::String;
     use alloc::vec::Vec;
+    use core::hash::{Hash, Hasher};
     use rand::distributions::Alphanumeric;
     use rand::{thread_rng, Rng};
     use std::collections::hash_map::DefaultHasher;
-    use std::eprintln;
-    use std::hash::{Hash, Hasher};
+    use std::println;
 
     const N: usize = 1 << 16;
 
@@ -207,25 +182,6 @@ mod test {
             }
         });
 
-        eprintln!("Bloomfilter(size = {}) Check for 'false positives': {} wrong positive 'Has' results on 2^16 entries => {}%", bf.bitset.len() << 6, cnt, cnt as f64 / N as f64);
-    }
-
-    #[test]
-    fn test_total_size() {
-        let bf = Bloom::new(10, 7f64);
-        assert_eq!(bf.total_size(), 104);
-    }
-
-    #[test]
-    fn test_size_exp() {
-        let bf = Bloom::new(10, 7f64);
-        assert_eq!(bf.size_exp(), 9);
-    }
-
-    #[test]
-    fn test_size() {
-        let mut bf = Bloom::new(10, 7f64);
-        bf.size(1024);
-        assert_eq!(bf.bitset.len(), 16);
+        println!("Bloomfilter(size = {}) Check for 'false positives': {} wrong positive 'Has' results on 2^16 entries => {}%", bf.bitset.len() << 6, cnt, cnt as f64 / N as f64);
     }
 }

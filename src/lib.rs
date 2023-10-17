@@ -88,7 +88,7 @@
 #![no_std]
 #![cfg_attr(docsrs, feature(doc_cfg))]
 #![cfg_attr(docsrs, allow(unused_attributes))]
-#![cfg_attr(feature = "nightly", feature(negative_impls, auto_traits))]
+// #![cfg_attr(feature = "nightly", feature(negative_impls, auto_traits))]
 #![deny(missing_docs)]
 #![allow(clippy::blocks_in_if_conditions)]
 
