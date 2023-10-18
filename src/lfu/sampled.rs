@@ -3,7 +3,7 @@
 //!
 //! [Dgraph's ristretto]: https://github.com/dgraph-io/ristretto/blob/master/policy.go
 use crate::lfu::{DefaultKeyHasher, KeyHasher};
-use crate::{DefaultHashBuilder, HashMap, KeyRef};
+use crate::{DefaultHashBuilder, HashMap};
 use alloc::vec::Vec;
 use core::borrow::Borrow;
 use core::hash::{BuildHasher, Hash};
@@ -163,7 +163,7 @@ impl<K: Hash + Eq, KH: KeyHasher<K>, S: BuildHasher> SampledLFU<K, KH, S> {
     #[inline]
     pub fn increment<Q>(&mut self, key: &Q, cost: i64)
     where
-        KeyRef<K>: Borrow<Q>,
+        K: Borrow<Q>,
         Q: Hash + Eq + ?Sized,
     {
         let kh = self.hash_key(key);
@@ -190,7 +190,7 @@ impl<K: Hash + Eq, KH: KeyHasher<K>, S: BuildHasher> SampledLFU<K, KH, S> {
     #[inline]
     pub fn remove<Q>(&mut self, key: &Q) -> Option<i64>
     where
-        KeyRef<K>: Borrow<Q>,
+        K: Borrow<Q>,
         Q: Hash + Eq + ?Sized,
     {
         let kh = self.hash_key(key);
@@ -207,7 +207,7 @@ impl<K: Hash + Eq, KH: KeyHasher<K>, S: BuildHasher> SampledLFU<K, KH, S> {
     /// Update the cost by key. If the provided key in SampledLFU, then update it and return true, otherwise false.
     pub fn update<Q>(&mut self, k: &Q, cost: i64) -> bool
     where
-        KeyRef<K>: Borrow<Q>,
+        K: Borrow<Q>,
         Q: Hash + Eq + ?Sized,
     {
         let kh = self.hash_key(k);
@@ -233,7 +233,7 @@ impl<K: Hash + Eq, KH: KeyHasher<K>, S: BuildHasher> SampledLFU<K, KH, S> {
     #[inline]
     pub fn hash_key<Q>(&self, k: &Q) -> u64
     where
-        KeyRef<K>: Borrow<Q>,
+        K: Borrow<Q>,
         Q: Hash + Eq + ?Sized,
     {
         self.kh.hash_key(k)

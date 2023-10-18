@@ -374,7 +374,7 @@ impl<K: Hash + Eq, V, E: OnEvictCallback, S: BuildHasher> Cache<K, V> for RawLRU
     /// ```
     ///
     /// [`PutResult`]: struct.PutResult.html
-    fn put(&mut self, k: K, mut v: V) -> PutResult<K, V> {
+    fn put(&mut self, k: K, v: V) -> PutResult<K, V> {
         self.capturing_put(k, v)
     }
 
@@ -396,21 +396,12 @@ impl<K: Hash + Eq, V, E: OnEvictCallback, S: BuildHasher> Cache<K, V> for RawLRU
     /// assert_eq!(cache.get(&2), Some(&"c"));
     /// assert_eq!(cache.get(&3), Some(&"d"));
     /// ```
-    fn get<'a, Q>(&'_ mut self, k: &'a Q) -> Option<&'a V>
+    fn get<Q>(&mut self, k: &Q) -> Option<&V>
     where
         K: Borrow<Q>,
         Q: Hash + Eq + ?Sized,
     {
-        if let Some(node) = self.map.get_mut(KeyWrapper::from_ref(k)) {
-            let node_ptr: *mut EntryNode<K, V> = node.as_ptr();
-
-            self.detach(node_ptr);
-            self.attach(node_ptr);
-
-            Some(unsafe { &*(*node_ptr).val.as_ptr() })
-        } else {
-            None
-        } 
+        self.get_(k).map(|v| unsafe { core::mem::transmute(v) })
     }
 
     /// Returns a mutable reference to the value of the key in the cache or `None` if it
@@ -431,21 +422,12 @@ impl<K: Hash + Eq, V, E: OnEvictCallback, S: BuildHasher> Cache<K, V> for RawLRU
     /// assert_eq!(cache.get_mut(&"banana"), Some(&mut 6));
     /// assert_eq!(cache.get_mut(&"pear"), Some(&mut 2));
     /// ```
-    fn get_mut<'a, Q>(&'_ mut self, k: &'a Q) -> Option<&'a mut V>
+    fn get_mut<Q>(&mut self, k: &Q) -> Option<&mut V>
     where
         K: Borrow<Q>,
         Q: Hash + Eq + ?Sized,
     {
-        if let Some(node) = self.map.get_mut(KeyWrapper::from_ref(k)) {
-            let node_ptr: *mut EntryNode<K, V> = node.as_ptr();
-
-            self.detach(node_ptr);
-            self.attach(node_ptr);
-
-            Some(unsafe { &mut *(*node_ptr).val.as_mut_ptr() })
-        } else {
-            None
-        }
+        self.get_mut_(k).map(|v| unsafe { core::mem::transmute(v) })
     }
 
     /// Returns a reference to the value corresponding to the key in the cache or `None` if it is
@@ -464,14 +446,12 @@ impl<K: Hash + Eq, V, E: OnEvictCallback, S: BuildHasher> Cache<K, V> for RawLRU
     /// assert_eq!(cache.peek(&1), Some(&"a"));
     /// assert_eq!(cache.peek(&2), Some(&"b"));
     /// ```
-    fn peek<'a, Q>(&'_ self, k: &'a Q) -> Option<&'a V>
+    fn peek<Q>(&self, k: &Q) -> Option<&V>
     where
         K: Borrow<Q>,
         Q: Hash + Eq + ?Sized,
     {
-        self.map
-            .get(KeyWrapper::from_ref(k))
-            .map(|node| unsafe { &*node.as_ref().val.as_ptr() })
+        self.peek_(k).map(|v| unsafe { core::mem::transmute(v) })
     }
 
     /// Returns a mutable reference to the value corresponding to the key in the cache or `None`
@@ -490,14 +470,14 @@ impl<K: Hash + Eq, V, E: OnEvictCallback, S: BuildHasher> Cache<K, V> for RawLRU
     /// assert_eq!(cache.peek_mut(&1), Some(&mut "a"));
     /// assert_eq!(cache.peek_mut(&2), Some(&mut "b"));
     /// ```
-    fn peek_mut<'a, Q>(&'_ mut self, k: &'a Q) -> Option<&'a mut V>
+    fn peek_mut<Q>(&mut self, k: &Q) -> Option<&mut V>
     where
         K: Borrow<Q>,
         Q: Hash + Eq + ?Sized,
     {
         match self.map.get_mut(KeyWrapper::from_ref(k)) {
             None => None,
-            Some(node) => Some(unsafe { &mut *node.as_ref().val.as_ptr() }),
+            Some(node) => Some(unsafe { &mut *node.as_mut().val.as_mut_ptr() }),
         }
     }
 
@@ -553,11 +533,12 @@ impl<K: Hash + Eq, V, E: OnEvictCallback, S: BuildHasher> Cache<K, V> for RawLRU
             Some(old_node) => unsafe {
                 let node_ptr = &mut *old_node.as_ptr();
                 self.detach(node_ptr);
-                let val = node_ptr.val.assume_init();
+                let node = *Box::from_raw(old_node.as_ptr());
+                let val = node.val.assume_init();
                 self.cb(&*node_ptr.key.as_ptr(), &val);
                 ptr::drop_in_place(node_ptr.key.as_mut_ptr());
-                Some(val) 
-            }
+                Some(val)
+            },
         }
     }
 
@@ -1081,28 +1062,13 @@ impl<K: Hash + Eq, V, E: OnEvictCallback, S: BuildHasher> RawLRU<K, V, E, S> {
     /// assert_eq!(cache.len(), 0);
     /// ```
     pub fn remove_lru(&mut self) -> Option<(K, V)> {
-        let node = self.remove_lru_in()?;
-        let node = self.remove_last()?;
+        unsafe {
+            let node = Box::from_raw(self.remove_lru_in()?.as_ptr());
 
-        // N.B.: Can't destructure directly because of https://github.com/rust-lang/rust/issues/28536
-        let node = *node;
-        let EntryNode { key, val, .. } = node;
-        unsafe { Some((key.assume_init(), val.assume_init())) }
-    }
-
-    fn remove_last(&mut self) -> Option<Box<EntryNode<K, V>>> {
-        let prev;
-        unsafe { prev = (*self.tail).prev }
-        if prev != self.head {
-            let old_key = KeyRef {
-                k: unsafe { &(*(*(*self.tail).prev).key.as_ptr()) },
-            };
-            let old_node = self.map.remove(&old_key).unwrap();
-            let node_ptr: *mut EntryNode<K, V> = old_node.as_ptr();
-            self.detach(node_ptr);
-            unsafe { Some(Box::from_raw(node_ptr)) }
-        } else {
-            None
+            // N.B.: Can't destructure directly because of https://github.com/rust-lang/rust/issues/28536
+            let node = *node;
+            let EntryNode { key, val, .. } = node;
+            Some((key.assume_init(), val.assume_init()))
         }
     }
 
@@ -1188,7 +1154,7 @@ impl<K: Hash + Eq, V, E: OnEvictCallback, S: BuildHasher> RawLRU<K, V, E, S> {
     ///     println!("val: {}", val);
     /// }
     /// ```
-    pub fn values_lru<'a>(&'_ self) -> ValuesLRUIter<'a, K, V> {
+    pub fn values_lru(&self) -> ValuesLRUIter<'_, K, V> {
         ValuesLRUIter {
             inner: self.iter_lru(),
         }
@@ -1211,7 +1177,7 @@ impl<K: Hash + Eq, V, E: OnEvictCallback, S: BuildHasher> RawLRU<K, V, E, S> {
     ///     println!("val: {}", val);
     /// }
     /// ```
-    pub fn values_mut<'a>(&'_ mut self) -> ValuesMRUIterMut<'a, K, V> {
+    pub fn values_mut(&mut self) -> ValuesMRUIterMut<'_, K, V> {
         ValuesMRUIterMut {
             inner: self.iter_mut(),
         }
@@ -1234,7 +1200,7 @@ impl<K: Hash + Eq, V, E: OnEvictCallback, S: BuildHasher> RawLRU<K, V, E, S> {
     ///     println!("val: {}", val);
     /// }
     /// ```
-    pub fn values_lru_mut<'a>(&'_ mut self) -> ValuesLRUIterMut<'a, K, V> {
+    pub fn values_lru_mut(&mut self) -> ValuesLRUIterMut<'_, K, V> {
         ValuesLRUIterMut {
             inner: self.iter_lru_mut(),
         }
@@ -1257,7 +1223,7 @@ impl<K: Hash + Eq, V, E: OnEvictCallback, S: BuildHasher> RawLRU<K, V, E, S> {
     ///     println!("key: {} val: {}", key, val);
     /// }
     /// ```
-    pub fn iter<'a>(&'_ self) -> MRUIter<'a, K, V> {
+    pub fn iter(&self) -> MRUIter<'_, K, V> {
         MRUIter {
             len: self.len(),
             ptr: unsafe { (*self.head).next },
@@ -1283,7 +1249,7 @@ impl<K: Hash + Eq, V, E: OnEvictCallback, S: BuildHasher> RawLRU<K, V, E, S> {
     ///     println!("key: {} val: {}", key, val);
     /// }
     /// ```
-    pub fn iter_lru<'a>(&'_ self) -> LRUIter<'a, K, V> {
+    pub fn iter_lru(&self) -> LRUIter<'_, K, V> {
         LRUIter {
             len: self.len(),
             ptr: unsafe { (*self.head).next },
@@ -1318,7 +1284,7 @@ impl<K: Hash + Eq, V, E: OnEvictCallback, S: BuildHasher> RawLRU<K, V, E, S> {
     ///     }
     /// }
     /// ```
-    pub fn iter_mut<'a>(&'_ mut self) -> MRUIterMut<'a, K, V> {
+    pub fn iter_mut(&mut self) -> MRUIterMut<'_, K, V> {
         MRUIterMut {
             len: self.len(),
             ptr: unsafe { (*self.head).next },
@@ -1353,7 +1319,7 @@ impl<K: Hash + Eq, V, E: OnEvictCallback, S: BuildHasher> RawLRU<K, V, E, S> {
     ///     }
     /// }
     /// ```
-    pub fn iter_lru_mut<'a>(&'_ mut self) -> LRUIterMut<'a, K, V> {
+    pub fn iter_lru_mut(&mut self) -> LRUIterMut<'_, K, V> {
         LRUIterMut {
             len: self.len(),
             ptr: unsafe { (*self.head).next },
@@ -1362,14 +1328,158 @@ impl<K: Hash + Eq, V, E: OnEvictCallback, S: BuildHasher> RawLRU<K, V, E, S> {
         }
     }
 
-    pub(crate) fn remove_and_return_ent<Q>(&mut self, k: &Q) -> Option<NonNull<EntryNode<K, V>>>
+    // used for avoiding borrow checker issues
+    pub(crate) fn peek_mut_<'a, Q>(&mut self, k: &'a Q) -> Option<&'a mut V>
     where
-        KeyRef<K>: Borrow<Q>,
+        K: Borrow<Q>,
         Q: Hash + Eq + ?Sized,
     {
-        match self.map.remove(k) {
+        match self.map.get_mut(KeyWrapper::from_ref(k)) {
             None => None,
-            Some(mut old_node) => unsafe {
+            Some(node) => Some(unsafe { &mut *node.as_mut().val.as_mut_ptr() }),
+        }
+    }
+
+    // used for avoiding borrow checker issues
+    pub(crate) fn peek_<'a, Q>(&self, k: &'a Q) -> Option<&'a V>
+    where
+        K: Borrow<Q>,
+        Q: Hash + Eq + ?Sized,
+    {
+        self.map
+            .get(KeyWrapper::from_ref(k))
+            .map(|node| unsafe { &*node.as_ref().val.as_ptr() })
+    }
+
+    // used for avoiding borrow checker issues
+    pub(crate) fn get_<'a, Q>(&mut self, k: &'a Q) -> Option<&'a V>
+    where
+        K: Borrow<Q>,
+        Q: Hash + Eq + ?Sized,
+    {
+        if let Some(node) = self.map.get_mut(KeyWrapper::from_ref(k)) {
+            let node_ptr: *mut EntryNode<K, V> = node.as_ptr();
+
+            self.detach(node_ptr);
+            self.attach(node_ptr);
+
+            Some(unsafe { &*(*node_ptr).val.as_ptr() })
+        } else {
+            None
+        }
+    }
+
+    // used for avoiding borrow checker issues
+    pub(crate) fn get_mut_<'a, Q>(&mut self, k: &'a Q) -> Option<&'a mut V>
+    where
+        K: Borrow<Q>,
+        Q: Hash + Eq + ?Sized,
+    {
+        if let Some(node) = self.map.get_mut(KeyWrapper::from_ref(k)) {
+            let node_ptr: *mut EntryNode<K, V> = node.as_ptr();
+
+            self.detach(node_ptr);
+            self.attach(node_ptr);
+
+            Some(unsafe { &mut *(*node_ptr).val.as_mut_ptr() })
+        } else {
+            None
+        }
+    }
+
+    pub(crate) fn put_nonnull(&mut self, mut bks: NonNull<EntryNode<K, V>>) -> PutResult<K, V> {
+        if self.len() >= self.cap() {
+            unsafe {
+                // Safety: the cache length is not zero, so the cache must have a tail node.
+                let node = ((*self.tail).prev).as_mut().unwrap();
+                self.detach(node);
+
+                // Safety: the node is in cache, so the cache map must have the node.
+                let node = self
+                    .map
+                    .remove(&KeyRef {
+                        k: node.key.as_ptr(),
+                    })
+                    .unwrap();
+
+                self.attach(bks.as_mut());
+                self.map.insert(
+                    KeyRef {
+                        k: bks.as_ref().key.as_ptr(),
+                    },
+                    bks,
+                );
+
+                let node = *Box::from_raw(node.as_ptr());
+                PutResult::Evicted {
+                    key: node.key.assume_init(),
+                    value: node.val.assume_init(),
+                }
+            }
+        } else {
+            let node_ptr: *mut EntryNode<K, V> = bks.as_ptr();
+            self.attach(node_ptr);
+
+            let keyref = unsafe { (*node_ptr).key.as_ptr() };
+            self.map.insert(KeyRef { k: keyref }, bks);
+            PutResult::Put
+        }
+    }
+
+    #[inline]
+    pub(crate) fn update(&mut self, v: &mut V, ent_ptr: *mut EntryNode<K, V>) {
+        // if the key is already in the cache just update its value and move it to the
+        // front of the list
+        unsafe { mem::swap(v, &mut (*(*ent_ptr).val.as_mut_ptr()) as &mut V) }
+        self.detach(ent_ptr);
+        self.attach(ent_ptr);
+    }
+
+    pub(crate) fn put_or_evict_nonnull(
+        &mut self,
+        mut bks: NonNull<EntryNode<K, V>>,
+    ) -> Option<NonNull<EntryNode<K, V>>> {
+        if self.len() >= self.cap() {
+            unsafe {
+                // Safety: the cache length is not zero, so the cache must have a tail node.
+                let node = ((*self.tail).prev).as_mut().unwrap();
+                self.detach(node);
+
+                // Safety: the node is in cache, so the cache map must have the node.
+                let node = self
+                    .map
+                    .remove(&KeyRef {
+                        k: node.key.as_ptr(),
+                    })
+                    .unwrap();
+
+                self.attach(bks.as_mut());
+                self.map.insert(
+                    KeyRef {
+                        k: bks.as_ref().key.as_ptr(),
+                    },
+                    bks,
+                );
+                Some(node)
+            }
+        } else {
+            let node_ptr: *mut EntryNode<K, V> = bks.as_ptr();
+            self.attach(node_ptr);
+
+            let keyref = unsafe { (*node_ptr).key.as_ptr() };
+            self.map.insert(KeyRef { k: keyref }, bks);
+            None
+        }
+    }
+
+    pub(crate) fn remove_and_return_ent<Q>(&mut self, k: &Q) -> Option<NonNull<EntryNode<K, V>>>
+    where
+        K: Borrow<Q>,
+        Q: Hash + Eq + ?Sized,
+    {
+        match self.map.remove(KeyWrapper::from_ref(k)) {
+            None => None,
+            Some(old_node) => {
                 let node_ptr: *mut EntryNode<K, V> = old_node.as_ptr();
                 self.detach(node_ptr);
                 Some(old_node)
@@ -1387,7 +1497,7 @@ impl<K: Hash + Eq, V, E: OnEvictCallback, S: BuildHasher> RawLRU<K, V, E, S> {
             let old_node = self.map.remove(&old_key);
             match old_node {
                 None => None,
-                Some(mut old_node) => {
+                Some(old_node) => {
                     let node_ptr: *mut EntryNode<K, V> = old_node.as_ptr();
                     self.detach(node_ptr);
                     Some(old_node)
@@ -1482,10 +1592,9 @@ impl<K: Hash + Eq + Clone, V: Clone> From<&mut [(K, V)]> for RawLRU<K, V> {
     }
 }
 
-#[cfg(feature = "nightly")]
 impl<K: Hash + Eq + Clone, V: Clone, const N: usize> From<[(K, V); N]> for RawLRU<K, V> {
     fn from(vals: [(K, V); N]) -> Self {
-        vals.to_vec().into_iter().collect()
+        vals.iter().cloned().collect()
     }
 }
 

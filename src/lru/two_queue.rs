@@ -8,7 +8,6 @@ use alloc::boxed::Box;
 use alloc::fmt;
 use core::borrow::Borrow;
 use core::hash::{BuildHasher, Hash};
-use core::mem;
 
 /// `DEFAULT_2Q_RECENT_RATIO` is the ratio of the [`TwoQueueCache`] dedicated
 /// to recently added entries that have only been accessed once.
@@ -434,7 +433,7 @@ impl<K: Hash + Eq, V, RH: BuildHasher, FH: BuildHasher, GH: BuildHasher> Cache<K
         // Check if the value is frequently used already,
         // and just update the value
         if let Some(ent_ptr) = self.frequent.map.get_mut(&key_ref).map(|node| {
-            let node_ptr: *mut EntryNode<K, V> = &mut **node;
+            let node_ptr: *mut EntryNode<K, V> = node.as_ptr();
             node_ptr
         }) {
             self.frequent.update(&mut v, ent_ptr);
@@ -446,7 +445,7 @@ impl<K: Hash + Eq, V, RH: BuildHasher, FH: BuildHasher, GH: BuildHasher> Cache<K
         if self
             .recent
             // here we remove an entry from recent LRU if key exists
-            .remove_and_return_ent(&key_ref)
+            .remove_and_return_ent(&k)
             .map(|mut ent| {
                 unsafe {
                     swap_value(&mut v, ent.as_mut());
@@ -454,7 +453,7 @@ impl<K: Hash + Eq, V, RH: BuildHasher, FH: BuildHasher, GH: BuildHasher> Cache<K
                 // here we add the entry to frequent LRU,
                 // the result will always be PutResult::Put
                 // because we have removed this entry from recent LRU
-                self.frequent.put_box(ent)
+                self.frequent.put_nonnull(ent)
             })
             .is_some()
         {
@@ -467,7 +466,7 @@ impl<K: Hash + Eq, V, RH: BuildHasher, FH: BuildHasher, GH: BuildHasher> Cache<K
 
         // If the value was recently evicted, add it to the
         // frequently used list
-        if self.ghost.contains(&key_ref) {
+        if self.ghost.contains(&k) {
             return if recent_len + freq_len >= self.size {
                 let ent = if recent_len > self.recent_size {
                     self.recent.remove_lru_in().unwrap()
@@ -475,55 +474,62 @@ impl<K: Hash + Eq, V, RH: BuildHasher, FH: BuildHasher, GH: BuildHasher> Cache<K
                     self.frequent.remove_lru_in().unwrap()
                 };
 
-                let rst = self.ghost.put_or_evict_box(ent);
+                let rst = self.ghost.put_or_evict_nonnull(ent);
                 match self.ghost.map.remove(&key_ref) {
                     None => match rst {
                         None => PutResult::Put,
                         Some(mut ent) => {
-                            let ent_ptr = ent.as_mut();
                             unsafe {
-                                mem::swap(&mut v, &mut (*ent_ptr.val.as_mut_ptr()) as &mut V);
+                                let ent_ptr = ent.as_mut();
+                                core::ptr::swap(&mut v, ent_ptr.val.as_mut_ptr());
                             }
-                            self.frequent.put_box(ent);
+                            self.frequent.put_nonnull(ent);
                             PutResult::Update(v)
                         }
                     },
                     Some(mut ent) => {
-                        let ent_ptr = ent.as_mut();
+                        let ent_ptr = ent.as_ptr();
                         self.ghost.detach(ent_ptr);
 
                         unsafe {
-                            mem::swap(&mut v, &mut (*ent_ptr.val.as_mut_ptr()) as &mut V);
-                            self.frequent.put_box(ent);
+                            let ent_ref = ent.as_mut();
+                            core::ptr::swap(&mut v, ent_ref.val.as_mut_ptr());
+                            self.frequent.put_nonnull(ent);
                             match rst {
                                 None => PutResult::Update(v),
-                                Some(ent) => PutResult::EvictedAndUpdate {
-                                    evicted: (ent.key.assume_init(), ent.val.assume_init()),
-                                    update: v,
-                                },
+                                Some(ent) => {
+                                    let ptr = ent.as_ptr();
+                                    let ent = *Box::from_raw(ptr);
+                                    PutResult::EvictedAndUpdate {
+                                        evicted: (ent.key.assume_init(), ent.val.assume_init()),
+                                        update: v,
+                                    }
+                                }
                             }
                         }
                     }
                 }
             } else {
                 let mut ent = self.ghost.map.remove(&key_ref).unwrap();
-                let ent_ptr = ent.as_mut();
+                let ent_ptr = ent.as_ptr();
                 self.ghost.detach(ent_ptr);
                 unsafe {
-                    mem::swap(&mut v, &mut (*ent_ptr.val.as_mut_ptr()) as &mut V);
+                    core::ptr::swap(&mut v, ent.as_mut().val.as_mut_ptr());
                 }
-                self.frequent.put_box(ent);
+                self.frequent.put_nonnull(ent);
                 PutResult::Update(v)
             };
         }
 
         // Add to the recently seen list.
-        let bks = Box::new(EntryNode::new(k, v));
+        let bks = unsafe {
+            core::ptr::NonNull::new_unchecked(Box::into_raw(Box::new(EntryNode::new(k, v))))
+        };
         // if we have enough space, we add entry to recent LRU directly
         if freq_len + recent_len < self.size {
-            return match self.recent.put_or_evict_box(bks) {
+            return match self.recent.put_or_evict_nonnull(bks) {
                 None => PutResult::Put,
-                Some(evicted) => self.ghost.put_box(evicted),
+                Some(evicted) => self.ghost.put_nonnull(evicted),
             };
         }
 
@@ -537,8 +543,8 @@ impl<K: Hash + Eq, V, RH: BuildHasher, FH: BuildHasher, GH: BuildHasher> Cache<K
             self.frequent.remove_lru_in().unwrap()
         };
 
-        self.recent.put_box(bks);
-        self.ghost.put_box(ent)
+        self.recent.put_nonnull(bks);
+        self.ghost.put_nonnull(ent)
     }
 
     /// Returns a mutable reference to the value of the key in the cache or `None` if it
@@ -557,17 +563,20 @@ impl<K: Hash + Eq, V, RH: BuildHasher, FH: BuildHasher, GH: BuildHasher> Cache<K
     ///
     /// assert_eq!(cache.get(&"banana"), Some(&6));
     /// ```
-    fn get<'a, Q>(&mut self, k: &'a Q) -> Option<&'a V>
+    fn get<Q>(&mut self, k: &Q) -> Option<&V>
     where
-        KeyRef<K>: Borrow<Q>,
+        K: Borrow<Q>,
         Q: Hash + Eq + ?Sized,
     {
         // Check if this is a frequent value
-        self.frequent.get(k).or_else(|| {
-            self.recent
-                .peek(k)
-                .and_then(|v| self.move_to_frequent(k, v))
-        })
+        self.frequent
+            .get_(k)
+            .or_else(|| {
+                self.recent
+                    .peek_(k)
+                    .and_then(|v| self.move_to_frequent(k, v))
+            })
+            .map(|v| unsafe { core::mem::transmute(v) })
     }
 
     /// Returns a mutable reference to the value of the key in the cache or `None` if it
@@ -588,17 +597,20 @@ impl<K: Hash + Eq, V, RH: BuildHasher, FH: BuildHasher, GH: BuildHasher> Cache<K
     /// assert_eq!(cache.get_mut(&"banana"), Some(&mut 6));
     /// assert_eq!(cache.get_mut(&"pear"), Some(&mut 2));
     /// ```
-    fn get_mut<'a, Q>(&mut self, k: &'a Q) -> Option<&'a mut V>
+    fn get_mut<Q>(&mut self, k: &Q) -> Option<&mut V>
     where
-        KeyRef<K>: Borrow<Q>,
+        K: Borrow<Q>,
         Q: Hash + Eq + ?Sized,
     {
         // Check if this is a frequent value
-        self.frequent.get_mut(k).or_else(|| {
-            self.recent
-                .peek_mut(k)
-                .and_then(|v| self.move_to_frequent(k, v))
-        })
+        self.frequent
+            .get_mut_(k)
+            .or_else(|| {
+                self.recent
+                    .peek_mut_(k)
+                    .and_then(|v| self.move_to_frequent(k, v))
+            })
+            .map(|v| unsafe { core::mem::transmute(v) })
     }
 
     /// Returns a reference to the value corresponding to the key in the cache or `None` if it is
@@ -617,9 +629,9 @@ impl<K: Hash + Eq, V, RH: BuildHasher, FH: BuildHasher, GH: BuildHasher> Cache<K
     /// assert_eq!(cache.peek(&1), Some(&"a"));
     /// assert_eq!(cache.peek(&2), Some(&"b"));
     /// ```
-    fn peek<'a, Q>(&self, k: &'a Q) -> Option<&'a V>
+    fn peek<Q>(&self, k: &Q) -> Option<&V>
     where
-        KeyRef<K>: Borrow<Q>,
+        K: Borrow<Q>,
         Q: Hash + Eq + ?Sized,
     {
         self.frequent.peek(k).or_else(|| self.recent.peek(k))
@@ -641,14 +653,15 @@ impl<K: Hash + Eq, V, RH: BuildHasher, FH: BuildHasher, GH: BuildHasher> Cache<K
     /// assert_eq!(cache.peek_mut(&1), Some(&mut "a"));
     /// assert_eq!(cache.peek_mut(&2), Some(&mut "b"));
     /// ```
-    fn peek_mut<'a, Q>(&mut self, k: &'a Q) -> Option<&'a mut V>
+    fn peek_mut<Q>(&mut self, k: &Q) -> Option<&mut V>
     where
-        KeyRef<K>: Borrow<Q>,
+        K: Borrow<Q>,
         Q: Hash + Eq + ?Sized,
     {
-        self.frequent
-            .peek_mut(k)
-            .or_else(|| self.recent.peek_mut(k))
+        match self.frequent.peek_mut(k) {
+            Some(v) => Some(v),
+            None => self.recent.peek_mut(k),
+        }
     }
 
     /// Removes and returns the value corresponding to the key from the cache or
@@ -669,7 +682,7 @@ impl<K: Hash + Eq, V, RH: BuildHasher, FH: BuildHasher, GH: BuildHasher> Cache<K
     /// ```
     fn remove<Q>(&mut self, k: &Q) -> Option<V>
     where
-        KeyRef<K>: Borrow<Q>,
+        K: Borrow<Q>,
         Q: Hash + Eq + ?Sized,
     {
         self.frequent
@@ -697,7 +710,7 @@ impl<K: Hash + Eq, V, RH: BuildHasher, FH: BuildHasher, GH: BuildHasher> Cache<K
     /// ```
     fn contains<Q>(&self, k: &Q) -> bool
     where
-        KeyRef<K>: Borrow<Q>,
+        K: Borrow<Q>,
         Q: Hash + Eq + ?Sized,
     {
         self.frequent.contains(k) || self.recent.contains(k)
@@ -1562,13 +1575,13 @@ impl<K: Hash + Eq, V, RH: BuildHasher, FH: BuildHasher, GH: BuildHasher>
 
     fn move_to_frequent<T, Q>(&mut self, k: &Q, v: T) -> Option<T>
     where
-        KeyRef<K>: Borrow<Q>,
+        K: Borrow<Q>,
         Q: Hash + Eq + ?Sized,
     {
         // remove the element from the recent LRU
         // and put it in frequent LRU.
         if let Some(ent) = self.recent.remove_and_return_ent(k) {
-            match self.frequent.put_or_evict_box(ent) {
+            match self.frequent.put_or_evict_nonnull(ent) {
                 None => Some(v),
                 // the Some branch will not reach, because we remove one from
                 // recent LRU, and add this one to frequent LRU, the total size
