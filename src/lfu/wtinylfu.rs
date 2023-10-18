@@ -6,7 +6,7 @@ use crate::lfu::{
     DefaultKeyHasher, KeyHasher,
 };
 use crate::lru::{SegmentedCache, SegmentedCacheBuilder};
-use crate::{Cache, DefaultHashBuilder, KeyRef, LRUCache, PutResult};
+use crate::{Cache, DefaultHashBuilder, LRUCache, PutResult};
 use core::borrow::Borrow;
 use core::hash::{BuildHasher, Hash};
 use core::marker::PhantomData;
@@ -465,15 +465,9 @@ impl<K: Hash + Eq, V, KH: KeyHasher<K>, FH: BuildHasher, RH: BuildHasher, WH: Bu
     ///
     /// [`PutResult`]: struct.PutResult.html
     fn put(&mut self, k: K, v: V) -> PutResult<K, V> {
-        #[cfg(any(feature = "nightly", feature = "nightly-core"))]
-        let new_key_ref = &KeyRef { k: &k };
-
-        #[cfg(not(any(feature = "nightly", feature = "nightly-core")))]
-        let new_key_ref = &k;
-
-        match self.lru.remove(new_key_ref) {
+        match self.lru.remove(&k) {
             None => {
-                if self.slru.contains(new_key_ref) {
+                if self.slru.contains(&k) {
                     return self.slru.put(k, v);
                 }
 
@@ -481,12 +475,6 @@ impl<K: Hash + Eq, V, KH: KeyHasher<K>, FH: BuildHasher, RH: BuildHasher, WH: Bu
                     PutResult::Put => PutResult::Put,
                     PutResult::Update(v) => PutResult::Update(v),
                     PutResult::Evicted { key, value } => {
-                        #[cfg(any(feature = "nightly", feature = "nightly-core"))]
-                        let evicted_key_ref = &KeyRef { k: &key };
-
-                        #[cfg(not(any(feature = "nightly", feature = "nightly-core")))]
-                        let evicted_key_ref = &key;
-
                         if self.slru.len() < self.slru.cap() {
                             return self.slru.put(key, value);
                         }
@@ -494,13 +482,7 @@ impl<K: Hash + Eq, V, KH: KeyHasher<K>, FH: BuildHasher, RH: BuildHasher, WH: Bu
                         match self.slru.peek_lru_from_probationary() {
                             None => self.slru.put(key, value),
                             Some((lruk, _)) => {
-                                #[cfg(any(feature = "nightly", feature = "nightly-core"))]
-                                let lru_key_ref = &KeyRef { k: lruk };
-
-                                #[cfg(not(any(feature = "nightly", feature = "nightly-core")))]
-                                let lru_key_ref = lruk;
-
-                                if self.tinylfu.lt(evicted_key_ref, lru_key_ref) {
+                                if self.tinylfu.lt(&key, lruk) {
                                     PutResult::Evicted { key, value }
                                 } else {
                                     self.slru.put(key, value)
@@ -540,15 +522,18 @@ impl<K: Hash + Eq, V, KH: KeyHasher<K>, FH: BuildHasher, RH: BuildHasher, WH: Bu
     ///
     /// assert_eq!(cache.get(&"banana"), Some(&6));
     /// ```
-    fn get<'a, Q>(&mut self, k: &'a Q) -> Option<&'a V>
+    fn get<Q>(&mut self, k: &Q) -> Option<&V>
     where
-        KeyRef<K>: Borrow<Q>,
+        K: Borrow<Q>,
         Q: Hash + Eq + ?Sized,
     {
         self.tinylfu.try_reset();
         self.tinylfu.increment(k);
 
-        self.lru.get(k).or_else(|| self.slru.get(k))
+        match self.lru.get(k) {
+            Some(v) => Some(v),
+            None => self.slru.get(k),
+        }
     }
 
     /// Returns a mutable reference to the value of the key in the cache or `None`.
@@ -566,14 +551,17 @@ impl<K: Hash + Eq, V, KH: KeyHasher<K>, FH: BuildHasher, RH: BuildHasher, WH: Bu
     ///
     /// assert_eq!(cache.get_mut(&"banana"), Some(&mut 6));
     /// ```
-    fn get_mut<'a, Q>(&mut self, k: &'a Q) -> Option<&'a mut V>
+    fn get_mut<Q>(&mut self, k: &Q) -> Option<&mut V>
     where
-        KeyRef<K>: Borrow<Q>,
+        K: Borrow<Q>,
         Q: Hash + Eq + ?Sized,
     {
         self.tinylfu.try_reset();
         self.tinylfu.increment(k);
-        self.lru.get_mut(k).or_else(|| self.slru.get_mut(k))
+        match self.lru.get_mut(k) {
+            Some(v) => Some(v),
+            None => self.slru.get_mut(k),
+        }
     }
 
     /// Returns a reference to the value corresponding to the key in the cache or `None` if it is
@@ -593,9 +581,9 @@ impl<K: Hash + Eq, V, KH: KeyHasher<K>, FH: BuildHasher, RH: BuildHasher, WH: Bu
     /// assert_eq!(cache.peek(&1), Some(&"a"));
     /// assert_eq!(cache.peek(&2), Some(&"b"));
     /// ```
-    fn peek<'a, Q>(&self, k: &'a Q) -> Option<&'a V>
+    fn peek<Q>(&self, k: &Q) -> Option<&V>
     where
-        KeyRef<K>: Borrow<Q>,
+        K: Borrow<Q>,
         Q: Hash + Eq + ?Sized,
     {
         self.lru.peek(k).or_else(|| self.slru.peek(k))
@@ -618,17 +606,20 @@ impl<K: Hash + Eq, V, KH: KeyHasher<K>, FH: BuildHasher, RH: BuildHasher, WH: Bu
     /// assert_eq!(cache.peek_mut(&1), Some(&mut "a"));
     /// assert_eq!(cache.peek_mut(&2), Some(&mut "b"));
     /// ```
-    fn peek_mut<'a, Q>(&mut self, k: &'a Q) -> Option<&'a mut V>
+    fn peek_mut<Q>(&mut self, k: &Q) -> Option<&mut V>
     where
-        KeyRef<K>: Borrow<Q>,
+        K: Borrow<Q>,
         Q: Hash + Eq + ?Sized,
     {
-        self.lru.peek_mut(k).or_else(|| self.slru.peek_mut(k))
+        match self.lru.peek_mut(k) {
+            Some(v) => Some(v),
+            None => self.slru.peek_mut(k),
+        }
     }
 
     fn contains<Q>(&self, k: &Q) -> bool
     where
-        KeyRef<K>: Borrow<Q>,
+        K: Borrow<Q>,
         Q: Eq + Hash + ?Sized,
     {
         self.lru.contains(k) || self.slru.contains(k)
@@ -636,7 +627,7 @@ impl<K: Hash + Eq, V, KH: KeyHasher<K>, FH: BuildHasher, RH: BuildHasher, WH: Bu
 
     fn remove<Q>(&mut self, k: &Q) -> Option<V>
     where
-        KeyRef<K>: Borrow<Q>,
+        K: Borrow<Q>,
         Q: Eq + Hash + ?Sized,
     {
         self.lru.remove(k).or_else(|| self.slru.remove(k))
