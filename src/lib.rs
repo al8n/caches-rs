@@ -88,7 +88,6 @@
 #![no_std]
 #![cfg_attr(docsrs, feature(doc_cfg))]
 #![cfg_attr(docsrs, allow(unused_attributes))]
-#![cfg_attr(feature = "nightly", feature(negative_impls, auto_traits))]
 #![deny(missing_docs)]
 #![allow(clippy::blocks_in_if_conditions, clippy::enum_variant_names)]
 
@@ -100,7 +99,6 @@ extern crate hashbrown;
 #[cfg(any(test, feature = "std"))]
 extern crate std;
 
-use core::borrow::Borrow;
 use core::fmt::{Debug, Formatter};
 use core::hash::{Hash, Hasher};
 
@@ -153,55 +151,6 @@ impl<K: PartialEq> PartialEq for KeyRef<K> {
 }
 
 impl<K: Eq> Eq for KeyRef<K> {}
-
-#[cfg(not(feature = "nightly"))]
-mod sealed {
-    use super::KeyRef;
-    use alloc::boxed::Box;
-    use alloc::string::String;
-    use alloc::vec::Vec;
-    use core::borrow::Borrow;
-
-    impl<T> Borrow<[T]> for KeyRef<Vec<T>> {
-        fn borrow(&self) -> &[T] {
-            unsafe { (*self.k).borrow() }
-        }
-    }
-
-    impl<T: ?Sized> Borrow<T> for KeyRef<Box<T>> {
-        fn borrow(&self) -> &T {
-            unsafe { (*self.k).borrow() }
-        }
-    }
-
-    impl Borrow<str> for KeyRef<String> {
-        fn borrow(&self) -> &str {
-            unsafe { (*self.k).borrow() }
-        }
-    }
-}
-
-cfg_nightly_hidden_doc!(
-    pub auto trait NotKeyRef {}
-    impl<K> !NotKeyRef for KeyRef<K> {}
-    impl<K, D> Borrow<D> for KeyRef<K>
-    where
-        K: Borrow<D>,
-        D: NotKeyRef + ?Sized,
-    {
-        fn borrow(&self) -> &D {
-            unsafe { &*self.k }.borrow()
-        }
-    }
-);
-
-cfg_not_nightly!(
-    impl<K> Borrow<K> for KeyRef<K> {
-        fn borrow(&self) -> &K {
-            unsafe { &*self.k }
-        }
-    }
-);
 
 /// `DefaultEvictCallback` is a noop evict callback.
 #[derive(Debug, Clone, Copy)]
