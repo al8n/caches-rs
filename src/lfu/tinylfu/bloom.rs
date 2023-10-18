@@ -191,6 +191,7 @@ mod test {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore)]
     fn test_number_of_wrongs() {
         let mut bf = Bloom::new(N * 10, 7f64);
 
