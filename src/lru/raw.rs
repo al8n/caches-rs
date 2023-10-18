@@ -302,7 +302,6 @@ impl<K: Hash + Eq, V, E: OnEvictCallback, S: BuildHasher> RawLRU<K, V, E, S> {
 
                 self.detach(node_ptr);
                 self.attach(node_ptr);
-                self.cb(&k, &v);
                 PutResult::Update(v)
             }
             None => {
@@ -315,7 +314,10 @@ impl<K: Hash + Eq, V, E: OnEvictCallback, S: BuildHasher> RawLRU<K, V, E, S> {
                 self.map.insert(KeyRef { k: keyref }, node);
 
                 match replaced {
-                    Some((k, v)) => PutResult::Evicted { key: k, value: v },
+                    Some((k, v)) => {
+                        self.cb(&k, &v);
+                        PutResult::Evicted { key: k, value: v }
+                    }
                     None => PutResult::Put,
                 }
             }
@@ -1068,7 +1070,10 @@ impl<K: Hash + Eq, V, E: OnEvictCallback, S: BuildHasher> RawLRU<K, V, E, S> {
             // N.B.: Can't destructure directly because of https://github.com/rust-lang/rust/issues/28536
             let node = *node;
             let EntryNode { key, val, .. } = node;
-            Some((key.assume_init(), val.assume_init()))
+            let key = key.assume_init();
+            let val = val.assume_init();
+            self.cb(&key, &val);
+            Some((key, val))
         }
     }
 
