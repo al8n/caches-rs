@@ -8,7 +8,41 @@ use alloc::vec::Vec;
 
 const LN_2: f64 = core::f64::consts::LN_2;
 
-const MASK: [u8; 8] = [1, 2, 4, 8, 16, 32, 64, 128];
+struct Size {
+    size: u64,
+    exp: u64,
+}
+
+fn get_size(n: u64) -> Size {
+    let mut n = n;
+    if n < 512 {
+        n = 512;
+    }
+
+    let mut size = 1u64;
+    let mut exp = 0u64;
+    while size < n {
+        size <<= 1;
+        exp += 1;
+    }
+
+    Size { size, exp }
+}
+
+struct EntriesLocs {
+    entries: u64,
+    locs: u64,
+}
+
+fn calc_size_by_wrong_positives(num_entries: f64, wrongs: f64) -> EntriesLocs {
+    let size = -1f64 * num_entries * wrongs.ln() / LN_2.powf(2f64);
+    let locs = (LN_2 * size / num_entries).ceil();
+
+    EntriesLocs {
+        entries: size as u64,
+        locs: locs as u64,
+    }
+}
 
 /// Bloom filter
 pub(crate) struct Bloom {
@@ -20,60 +54,66 @@ pub(crate) struct Bloom {
 }
 
 impl Bloom {
-    /// Create a new Bloom filter
-    pub fn new(entries: usize, wrongs_or_locs: f64) -> Self {
-        let (entries, locs) = if wrongs_or_locs < 1.0 {
-            Bloom::calc_size_by_wrong_positives(entries, wrongs_or_locs)
-        } else {
-            (entries as u64, wrongs_or_locs as u64)
+    pub fn new(cap: usize, false_positive_ratio: f64) -> Self {
+        let entries_locs = {
+            if false_positive_ratio < 1f64 {
+                calc_size_by_wrong_positives(cap as f64, false_positive_ratio)
+            } else {
+                EntriesLocs {
+                    entries: cap as u64,
+                    locs: false_positive_ratio as u64,
+                }
+            }
         };
 
-        let (size, exponent) = Bloom::get_size(entries);
+        let size = get_size(entries_locs.entries);
 
-        let mut bloom = Bloom {
-            bitset: Vec::new(),
+        Self {
+            bitset: vec![0; (size.size >> 6) as usize],
             elem_num: 0,
-            size: size - 1,
-            set_locs: locs,
-            shift: 64 - exponent,
-        };
-        bloom.set_size(size);
-        bloom
-    }
-
-    fn calc_size_by_wrong_positives(num_entries: usize, wrongs: f64) -> (u64, u64) {
-        let size = -1.0 * (num_entries as f64) * wrongs.ln() / LN_2.powi(2);
-        let locs = (LN_2 * size / (num_entries as f64)).ceil();
-        (size as u64, locs as u64)
-    }
-
-    fn get_size(ui64: u64) -> (u64, u64) {
-        let mut size = 1;
-        let mut exponent = 0;
-        while size < ui64 {
-            size <<= 1;
-            exponent += 1;
+            size: size.size - 1,
+            set_locs: entries_locs.locs,
+            shift: 64 - size.exp,
         }
-        (size, exponent)
+    }
+
+    /// `clear` clear the `Bloom` filter
+    pub fn clear(&mut self) {
+        self.bitset.iter_mut().for_each(|v| *v = 0);
+    }
+
+    /// `set` sets the bit[idx] of bitset
+    /// `set` sets the bit[idx] of bitset
+    pub fn set(&mut self, idx: usize) {
+        let array_idx = idx >> 6; // divide by 64 to get the index in the bitset array
+        let bit_idx = idx % 64; // get the bit position within the 64-bit integer
+        self.bitset[array_idx] |= 1u64 << bit_idx;
+    }
+
+    /// `is_set` checks if bit[idx] of bitset is set, returns true/false.
+    pub fn is_set(&self, idx: usize) -> bool {
+        let array_idx = idx >> 6; // divide by 64 to get the index in the bitset array
+        let bit_idx = idx % 64; // get the bit position within the 64-bit integer
+        (self.bitset[array_idx] & (1u64 << bit_idx)) != 0
     }
 
     /// `add` adds hash of a key to the bloom filter
     pub fn add(&mut self, hash: u64) {
         let h = hash >> self.shift;
-        let l = hash << self.shift >> self.shift;
-        for i in 0..self.set_locs {
-            self.set((h + i * l) & self.size);
+        let l = (hash << self.shift) >> self.shift;
+        (0..self.set_locs).for_each(|i| {
+            self.set(((h + i * l) & self.size) as usize);
             self.elem_num += 1;
-        }
+        });
     }
 
     /// `contains` checks if bit(s) for entry hash is/are set,
     /// returns true if the hash was added to the Bloom Filter.
     pub fn contains(&self, hash: u64) -> bool {
         let h = hash >> self.shift;
-        let l = hash << self.shift >> self.shift;
+        let l = (hash << self.shift) >> self.shift;
         for i in 0..self.set_locs {
-            if !self.is_set((h + i * l) & self.size) {
+            if !self.is_set(((h + i * l) & self.size) as usize) {
                 return false;
             }
         }
@@ -91,35 +131,7 @@ impl Bloom {
             true
         }
     }
-
-    // pub fn total_size(&self) -> usize {
-    //     self.bitset.len() * 8 + 5 * 8
-    // }
-
-    fn set_size(&mut self, sz: u64) {
-        self.bitset = vec![0; (sz >> 6) as usize];
-    }
-
-    /// `clear` clear the `Bloom` filter
-    pub fn clear(&mut self) {
-        for i in &mut self.bitset {
-            *i = 0;
-        }
-    }
-
-    /// `set` sets the bit[idx] of bitset
-    pub fn set(&mut self, idx: u64) {
-        let idx = idx as usize;
-        self.bitset[idx >> 6] |= MASK[idx % 8] as u64;
-    }
-
-    /// `is_set` checks if bit[idx] of bitset is set, returns true/false.
-    pub fn is_set(&self, idx: u64) -> bool {
-        let idx = idx as usize;
-        (self.bitset[idx >> 6] & MASK[idx % 8] as u64) != 0
-    }
 }
-
 #[cfg(test)]
 mod test {
     use crate::lfu::tinylfu::bloom::Bloom;
