@@ -17,7 +17,8 @@ pub struct AdaptiveCacheBuilder<
     FH = DefaultHashBuilder,
     FEH = DefaultHashBuilder,
 > {
-    size: usize,
+    recent_size: usize,
+    frequent_size: usize,
     recent_hasher: Option<RH>,
     recent_evict_hasher: Option<REH>,
     freq_hasher: Option<FH>,
@@ -31,7 +32,7 @@ impl Default for AdaptiveCacheBuilder {
     /// ```rust
     /// use caches::{AdaptiveCacheBuilder, AdaptiveCache, Cache};
     /// let mut cache: AdaptiveCache<u64, u64> = AdaptiveCacheBuilder::default()
-    ///     .set_size(5)
+    ///     .set_recent_size(5)
     ///     .finalize()
     ///     .unwrap();
     ///
@@ -39,7 +40,8 @@ impl Default for AdaptiveCacheBuilder {
     /// ```
     fn default() -> Self {
         Self {
-            size: 0,
+            recent_size: 1,
+            frequent_size: 1,
             recent_hasher: Some(DefaultHashBuilder::default()),
             recent_evict_hasher: Some(DefaultHashBuilder::default()),
             freq_hasher: Some(DefaultHashBuilder::default()),
@@ -79,9 +81,10 @@ impl<RH: BuildHasher, REH: BuildHasher, FH: BuildHasher, FEH: BuildHasher>
     AdaptiveCacheBuilder<RH, REH, FH, FEH>
 {
     /// Set the cache size
-    pub fn set_size(self, size: usize) -> Self {
+    pub fn set_recent_size(self, size: usize) -> Self {
         Self {
-            size,
+            recent_size: size,
+            frequent_size: self.frequent_size,
             recent_hasher: self.recent_hasher,
             recent_evict_hasher: self.recent_evict_hasher,
             freq_hasher: self.freq_hasher,
@@ -95,7 +98,8 @@ impl<RH: BuildHasher, REH: BuildHasher, FH: BuildHasher, FEH: BuildHasher>
         hasher: NRH,
     ) -> AdaptiveCacheBuilder<NRH, REH, FH, FEH> {
         AdaptiveCacheBuilder {
-            size: self.size,
+            recent_size: self.recent_size,
+            frequent_size: self.frequent_size,
             recent_hasher: Some(hasher),
             recent_evict_hasher: self.recent_evict_hasher,
             freq_hasher: self.freq_hasher,
@@ -109,7 +113,8 @@ impl<RH: BuildHasher, REH: BuildHasher, FH: BuildHasher, FEH: BuildHasher>
         hasher: NFH,
     ) -> AdaptiveCacheBuilder<RH, REH, NFH, FEH> {
         AdaptiveCacheBuilder {
-            size: self.size,
+            recent_size: self.recent_size,
+            frequent_size: self.frequent_size,
             recent_hasher: self.recent_hasher,
             recent_evict_hasher: self.recent_evict_hasher,
             freq_hasher: Some(hasher),
@@ -123,7 +128,8 @@ impl<RH: BuildHasher, REH: BuildHasher, FH: BuildHasher, FEH: BuildHasher>
         hasher: NREH,
     ) -> AdaptiveCacheBuilder<RH, NREH, FH, FEH> {
         AdaptiveCacheBuilder {
-            size: self.size,
+            recent_size: self.recent_size,
+            frequent_size: self.frequent_size,
             recent_hasher: self.recent_hasher,
             recent_evict_hasher: Some(hasher),
             freq_hasher: self.freq_hasher,
@@ -137,7 +143,8 @@ impl<RH: BuildHasher, REH: BuildHasher, FH: BuildHasher, FEH: BuildHasher>
         hasher: NFEH,
     ) -> AdaptiveCacheBuilder<RH, REH, FH, NFEH> {
         AdaptiveCacheBuilder {
-            size: self.size,
+            recent_size: self.recent_size,
+            frequent_size: self.frequent_size,
             recent_hasher: self.recent_hasher,
             recent_evict_hasher: self.recent_evict_hasher,
             freq_hasher: self.freq_hasher,
@@ -151,19 +158,24 @@ impl<RH: BuildHasher, REH: BuildHasher, FH: BuildHasher, FEH: BuildHasher>
     pub fn finalize<K: Hash + Eq, V>(
         self,
     ) -> Result<AdaptiveCache<K, V, RH, REH, FH, FEH>, CacheError> {
-        let size = self.size;
-        if size == 0 {
+        if self.recent_size == 0 {
+            return Err(CacheError::InvalidSize(0));
+        }
+
+        if self.frequent_size == 0 {
             return Err(CacheError::InvalidSize(0));
         }
 
         // allocate the lrus
-        let recent = RawLRU::with_hasher(size, self.recent_hasher.unwrap()).unwrap();
-        let recent_evict = RawLRU::with_hasher(size, self.recent_evict_hasher.unwrap()).unwrap();
-        let freq = RawLRU::with_hasher(size, self.freq_hasher.unwrap()).unwrap();
-        let freq_evict = RawLRU::with_hasher(size, self.freq_evict_hasher.unwrap()).unwrap();
+        let recent = RawLRU::with_hasher(self.recent_size, self.recent_hasher.unwrap()).unwrap();
+        let recent_evict =
+            RawLRU::with_hasher(self.recent_size, self.recent_evict_hasher.unwrap()).unwrap();
+        let freq = RawLRU::with_hasher(self.frequent_size, self.freq_hasher.unwrap()).unwrap();
+        let freq_evict =
+            RawLRU::with_hasher(self.frequent_size, self.freq_evict_hasher.unwrap()).unwrap();
 
         Ok(AdaptiveCache {
-            size,
+            size: self.frequent_size + self.recent_size,
             p: 0,
             recent,
             recent_evict,
@@ -1760,6 +1772,7 @@ impl<K: Hash + Eq, V, RH: BuildHasher, REH: BuildHasher, FH: BuildHasher, FEH: B
 #[cfg(test)]
 mod test {
     use crate::{AdaptiveCache, Cache};
+    use alloc::string::String;
     use alloc::vec::Vec;
     use rand::seq::SliceRandom;
     use rand::{thread_rng, Rng};
@@ -1978,5 +1991,53 @@ mod test {
         assert_eq!(cache.peek(&1), Some(&1));
         cache.put(3, 3);
         assert!(!cache.contains(&1));
+    }
+
+    #[test]
+    fn test_issues9() {
+        use core::hash::Hash;
+
+        pub(crate) trait CacheExt<K: Clone + Hash + Eq, V: Default> {
+            fn get_or_insert_default_and_edit(&mut self, k: K, edit: impl FnOnce(&mut V));
+        }
+
+        impl<K: Clone + Hash + Eq, V: Default, C: Cache<K, V>> CacheExt<K, V> for C {
+            fn get_or_insert_default_and_edit(&mut self, k: K, edit: impl FnOnce(&mut V)) {
+                if self.contains(&k) {
+                    edit(self.get_mut(&k).unwrap());
+                } else {
+                    let mut val = V::default();
+                    edit(&mut val);
+
+                    self.remove(&k);
+                    self.put(k, val);
+                }
+            }
+        }
+
+        let mut t = AdaptiveCache::<String, usize>::new(2).unwrap();
+
+        t.get_or_insert_default_and_edit("abc".into(), |v| *v += 1);
+        t.get_or_insert_default_and_edit("def".into(), |v| *v += 2);
+
+        // evicts "abc"
+        t.get_or_insert_default_and_edit("ghi".into(), |v| *v += 3);
+        assert_eq!(t.get("abc"), None);
+
+        // evicts "def"
+        t.get_or_insert_default_and_edit("jkl".into(), |v| *v += 4);
+        assert_eq!(t.get("def"), None);
+
+        // evicts "ghi"
+        t.get_or_insert_default_and_edit("abc".into(), |v| *v += 5);
+        assert_eq!(t.get("ghi"), None);
+
+        // evicts "jkl"
+        t.get_or_insert_default_and_edit("def".into(), |v| *v += 6);
+
+        assert_eq!(t.get("abc"), Some(&5));
+        assert_eq!(t.get("def"), Some(&6));
+        assert_eq!(t.get("ghi"), None);
+        assert_eq!(t.get("jkl"), None);
     }
 }
