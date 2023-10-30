@@ -134,6 +134,7 @@ cfg_std!(
 
 // Struct used to hold a reference to a key
 #[doc(hidden)]
+#[derive(Clone)]
 pub struct KeyRef<K> {
     k: *const K,
 }
