@@ -36,24 +36,38 @@ pub struct WTinyLFUCacheBuilder<
     marker: PhantomData<K>,
 }
 
-impl<K: Hash + Eq> Default for WTinyLFUCacheBuilder<K> {
+impl<
+        K: Hash + Eq,
+        KH: KeyHasher<K> + Default,
+        FH: BuildHasher + Default,
+        RH: BuildHasher + Default,
+        WH: BuildHasher + Default,
+    > Default for WTinyLFUCacheBuilder<K, KH, FH, RH, WH>
+{
     fn default() -> Self {
         Self {
             samples: 0,
             window_cache_size: 0,
             main_cache_protected_size: 0,
             main_cache_probationary_size: 0,
-            window_cache_hasher: Some(DefaultHashBuilder::default()),
-            main_cache_protected_hasher: Some(DefaultHashBuilder::default()),
-            main_cache_probationary_hasher: Some(DefaultHashBuilder::default()),
-            key_hasher: Some(DefaultKeyHasher::default()),
+            window_cache_hasher: Some(WH::default()),
+            main_cache_protected_hasher: Some(FH::default()),
+            main_cache_probationary_hasher: Some(RH::default()),
+            key_hasher: Some(KH::default()),
             false_positive_ratio: Some(DEFAULT_FALSE_POSITIVE_RATIO),
             marker: Default::default(),
         }
     }
 }
 
-impl<K: Hash + Eq> WTinyLFUCacheBuilder<K> {
+impl<
+        K: Hash + Eq,
+        KH: KeyHasher<K> + Default,
+        FH: BuildHasher + Default,
+        RH: BuildHasher + Default,
+        WH: BuildHasher + Default,
+    > WTinyLFUCacheBuilder<K, KH, FH, RH, WH>
+{
     /// The constructor of WTinyLFUCacheBuilder
     pub fn new(
         window_cache_size: usize,
@@ -72,6 +86,27 @@ impl<K: Hash + Eq> WTinyLFUCacheBuilder<K> {
 impl<K: Hash + Eq, KH: KeyHasher<K>, FH: BuildHasher, RH: BuildHasher, WH: BuildHasher>
     WTinyLFUCacheBuilder<K, KH, FH, RH, WH>
 {
+    /// Construct a WTinyLFUCacheBuilder using the custom hashers.
+    pub fn with_hashers(
+        key_hasher: KH,
+        protected_hasher: FH,
+        probationary_hasher: RH,
+        window_hasher: WH,
+    ) -> Self {
+        Self {
+            samples: 0,
+            window_cache_size: 0,
+            main_cache_protected_size: 0,
+            main_cache_probationary_size: 0,
+            window_cache_hasher: Some(window_hasher),
+            main_cache_protected_hasher: Some(protected_hasher),
+            main_cache_probationary_hasher: Some(probationary_hasher),
+            key_hasher: Some(key_hasher),
+            false_positive_ratio: Some(DEFAULT_FALSE_POSITIVE_RATIO),
+            marker: Default::default(),
+        }
+    }
+
     /// Set the samples of TinyLFU
     pub fn set_samples(self, samples: usize) -> Self {
         Self {
@@ -400,6 +435,19 @@ impl<K: Hash + Eq, V> WTinyLFUCache<K, V, DefaultKeyHasher<K>> {
         )
         .finalize()
     }
+}
+
+impl<K: Hash + Eq, V, KH: KeyHasher<K>, FH: BuildHasher, RH: BuildHasher, WH: BuildHasher>
+    WTinyLFUCache<K, V, KH, FH, RH, WH>
+{
+    /// Creates a WTinyLFUCache according to [`WTinyLFUCacheBuilder`]
+    ///
+    /// [`WTinyLFUCacheBuilder`]: struct.WTinyLFUCacheBuilder.html
+    pub fn from_builder(
+        builder: WTinyLFUCacheBuilder<K, KH, FH, RH, WH>,
+    ) -> Result<Self, WTinyLFUError> {
+        builder.finalize()
+    }
 
     /// Returns a [`WTinyLFUCacheBuilder`] with default configurations.
     ///
@@ -426,19 +474,6 @@ impl<K: Hash + Eq, V> WTinyLFUCache<K, V, DefaultKeyHasher<K>> {
     ///
     pub fn main_cache_cap(&self) -> usize {
         self.slru.cap()
-    }
-}
-
-impl<K: Hash + Eq, V, KH: KeyHasher<K>, FH: BuildHasher, RH: BuildHasher, WH: BuildHasher>
-    WTinyLFUCache<K, V, KH, FH, RH, WH>
-{
-    /// Creates a WTinyLFUCache according to [`WTinyLFUCacheBuilder`]
-    ///
-    /// [`WTinyLFUCacheBuilder`]: struct.WTinyLFUCacheBuilder.html
-    pub fn from_builder(
-        builder: WTinyLFUCacheBuilder<K, KH, FH, RH, WH>,
-    ) -> Result<Self, WTinyLFUError> {
-        builder.finalize()
     }
 }
 
@@ -654,8 +689,120 @@ impl<K: Hash + Eq, V, KH: KeyHasher<K>, FH: BuildHasher, RH: BuildHasher, WH: Bu
 
 #[cfg(test)]
 mod test {
+    use core::hash::BuildHasher;
+
+    use crate::lfu::tinylfu::test::{PassthroughU64Hasher, PassthroughU64KeyHasher};
     use crate::lfu::WTinyLFUCache;
-    use crate::{Cache, PutResult};
+    use crate::{Cache, PutResult, WTinyLFUCacheBuilder};
+
+    #[derive(Default)]
+    struct PassthroughBuilderU64Hasher {}
+
+    impl BuildHasher for PassthroughBuilderU64Hasher {
+        type Hasher = PassthroughU64Hasher;
+
+        fn build_hasher(&self) -> Self::Hasher {
+            Default::default()
+        }
+    }
+
+    #[test]
+    #[cfg_attr(miri, ignore)]
+    fn test_wtinylfu_custom_hasher() {
+        let mut cache: WTinyLFUCache<
+            u64,
+            u32,
+            PassthroughU64KeyHasher,
+            PassthroughBuilderU64Hasher,
+            PassthroughBuilderU64Hasher,
+            PassthroughBuilderU64Hasher,
+        > = WTinyLFUCacheBuilder::default()
+            .set_window_cache_size(1)
+            .set_protected_cache_size(2)
+            .set_probationary_cache_size(2)
+            .set_samples(5)
+            .finalize()
+            .unwrap();
+        assert_eq!(cache.cap(), 5);
+        assert_eq!(cache.window_cache_cap(), 1);
+        assert_eq!(cache.main_cache_cap(), 4);
+
+        assert_eq!(cache.put(1, 1), PutResult::Put);
+        assert!(cache.contains(&1));
+        assert_eq!(cache.put(2, 2), PutResult::Put);
+        assert!(cache.contains(&2));
+        assert_eq!(cache.put(3, 3), PutResult::Put);
+        assert!(cache.contains(&3));
+
+        // current state
+        // window cache:        (MRU) [3] (LRU)
+        // probationary cache:  (MRU) [2, 1] (LRU)
+        // protected cache:     (MRU) [] (LRU)
+        assert_eq!(cache.window_cache_len(), 1);
+        assert_eq!(cache.main_cache_len(), 2);
+
+        assert_eq!(cache.put(2, 22), PutResult::Update(2));
+        assert_eq!(cache.put(1, 11), PutResult::Update(1));
+
+        // current state
+        // window cache:        (MRU) [3] (LRU)
+        // probationary cache:  (MRU) [] (LRU)
+        // protected cache:     (MRU) [1, 2] (LRU)
+        assert_eq!(cache.slru.peek_lru_from_protected(), Some((&2, &22)));
+        assert_eq!(cache.slru.peek_mru_from_protected(), Some((&1, &11)));
+        assert_eq!(cache.window_cache_len(), 1);
+        assert_eq!(cache.slru.protected_len(), 2);
+        assert_eq!(cache.slru.probationary_len(), 0);
+
+        assert_eq!(cache.put(3, 33), PutResult::Update(3));
+
+        // current state
+        // window cache:        (MRU) [2] (LRU)
+        // probationary cache:  (MRU) [] (LRU)
+        // protected cache:     (MRU) [3, 1] (LRU)
+        assert_eq!(cache.lru.peek_lru(), Some((&2, &22)));
+        assert_eq!(cache.slru.peek_lru_from_protected(), Some((&1, &11)));
+        assert_eq!(cache.slru.peek_mru_from_protected(), Some((&3, &33)));
+        assert_eq!(cache.window_cache_len(), 1);
+        assert_eq!(cache.slru.protected_len(), 2);
+        assert_eq!(cache.slru.probationary_len(), 0);
+
+        assert_eq!(cache.put(4, 4), PutResult::Put);
+        assert_eq!(cache.put(5, 5), PutResult::Put);
+
+        // current state
+        // window cache:        (MRU) [5] (LRU)
+        // probationary cache:  (MRU) [4, 2] (LRU)
+        // protected cache:     (MRU) [3, 1] (LRU)
+        assert_eq!(cache.lru.peek_lru(), Some((&5, &5)));
+        assert_eq!(cache.slru.peek_lru_from_probationary(), Some((&2, &22)));
+        assert_eq!(cache.slru.peek_mru_from_probationary(), Some((&4, &4)));
+        assert_eq!(cache.lru.len(), 1);
+        assert_eq!(cache.slru.protected_len(), 2);
+        assert_eq!(cache.slru.probationary_len(), 2);
+
+        assert_eq!(cache.get(&4), Some(&4));
+        assert_eq!(cache.get_mut(&5), Some(&mut 5));
+
+        // current state
+        // window cache:        (MRU) [5] (LRU)
+        // probationary cache:  (MRU) [1, 2] (LRU)
+        // protected cache:     (MRU) [4, 3] (LRU)
+        assert_eq!(cache.lru.peek_lru(), Some((&5, &5)));
+        assert_eq!(cache.slru.peek_lru_from_probationary(), Some((&2, &22)));
+        assert_eq!(cache.slru.peek_mru_from_probationary(), Some((&1, &11)));
+        assert_eq!(cache.slru.peek_lru_from_protected(), Some((&3, &33)));
+        assert_eq!(cache.slru.peek_mru_from_protected(), Some((&4, &4)));
+        assert_eq!(cache.lru.len(), 1);
+        assert_eq!(cache.slru.protected_len(), 2);
+        assert_eq!(cache.slru.probationary_len(), 2);
+
+        assert_eq!(cache.peek(&3), Some(&33));
+        assert_eq!(cache.peek_mut(&2), Some(&mut 22));
+
+        assert_eq!(cache.remove(&3), Some(33));
+        assert_eq!(cache.remove(&2), Some(22));
+    }
 
     #[test]
     #[cfg_attr(miri, ignore)]

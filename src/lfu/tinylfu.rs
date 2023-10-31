@@ -27,12 +27,12 @@ pub struct TinyLFUBuilder<K, KH = DefaultKeyHasher<K>> {
     marker: PhantomData<K>,
 }
 
-impl<K: Hash + Eq> Default for TinyLFUBuilder<K> {
+impl<K: Hash + Eq, KH: KeyHasher<K> + Default> Default for TinyLFUBuilder<K, KH> {
     fn default() -> Self {
         Self {
             samples: 0,
             size: 0,
-            key_hasher: Some(DefaultKeyHasher::default()),
+            key_hasher: Some(KH::default()),
             false_positive_ratio: Some(DEFAULT_FALSE_POSITIVE_RATIO),
             marker: Default::default(),
         }
@@ -47,6 +47,17 @@ impl<K: Hash + Eq> TinyLFUBuilder<K> {
 }
 
 impl<K: Hash + Eq, KH: KeyHasher<K>> TinyLFUBuilder<K, KH> {
+    /// The constructor of TinyLFUBuilder
+    pub fn with_hasher(key_hasher: KH) -> Self {
+        Self {
+            samples: 0,
+            size: 0,
+            key_hasher: Some(key_hasher),
+            false_positive_ratio: Some(DEFAULT_FALSE_POSITIVE_RATIO),
+            marker: Default::default(),
+        }
+    }
+
     /// Set the samples of TinyLFU
     pub fn set_samples(self, samples: usize) -> Self {
         Self {
@@ -387,8 +398,65 @@ impl<K: Hash + Eq, KH: KeyHasher<K>> TinyLFU<K, KH> {
 }
 
 #[cfg(test)]
-mod test {
-    use crate::lfu::tinylfu::TinyLFU;
+pub(crate) mod test {
+    use core::hash::Hasher;
+
+    use crate::lfu::{tinylfu::TinyLFU, KeyHasher};
+
+    use super::TinyLFUBuilder;
+
+    #[derive(Default)]
+    pub(crate) struct PassthroughU64Hasher(u64);
+    impl core::hash::Hasher for PassthroughU64Hasher {
+        fn finish(&self) -> u64 {
+            self.0
+        }
+
+        fn write(&mut self, _bytes: &[u8]) {
+            panic!("Can only write u64");
+        }
+
+        fn write_u64(&mut self, i: u64) {
+            self.0 = i;
+        }
+    }
+
+    #[derive(Default)]
+    pub(crate) struct PassthroughU64KeyHasher {}
+
+    impl KeyHasher<u64> for PassthroughU64KeyHasher {
+        fn hash_key<Q>(&self, key: &Q) -> u64
+        where
+            u64: core::borrow::Borrow<Q>,
+            Q: core::hash::Hash + Eq + ?Sized,
+        {
+            let mut state = PassthroughU64Hasher::default();
+            key.hash(&mut state);
+            state.finish()
+        }
+    }
+
+    #[test]
+    fn test_custom_hasher() {
+        let mut l: TinyLFU<u64, PassthroughU64KeyHasher> = TinyLFUBuilder::default()
+            .set_size(4)
+            .set_samples(4)
+            .finalize()
+            .unwrap();
+        assert_eq!(l.hash_key(&0), 0);
+        assert_eq!(l.hash_key(&10), 10);
+
+        l.increment(&1);
+        l.increment(&1);
+        l.increment(&1);
+
+        assert!(l.doorkeeper.contains(1));
+        assert_eq!(l.ctr.estimate(1), 2);
+
+        l.increment(&1);
+        assert!(!l.doorkeeper.contains(1));
+        assert_eq!(l.ctr.estimate(1), 1);
+    }
 
     #[test]
     fn test_increment() {
