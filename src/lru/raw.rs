@@ -198,6 +198,29 @@ pub struct RawLRU<K, V, E = DefaultEvictCallback, S = DefaultHashBuilder> {
     tail: *mut EntryNode<K, V>,
 }
 
+impl<K: Hash + Eq + Clone, V: Clone, E: OnEvictCallback + Clone, S: BuildHasher + Clone> Clone
+    for RawLRU<K, V, E, S>
+{
+    fn clone(&self) -> Self {
+        let mut cloned = RawLRU::<K, V, E, S>::construct(
+            self.cap,
+            HashMap::with_capacity_and_hasher(self.map.capacity(), self.map.hasher().clone()),
+            self.on_evict.clone(),
+        );
+        for entry in self.map.values() {
+            let (k, v) = unsafe {
+                let entry = entry.as_ref();
+                (
+                    entry.key.assume_init_ref().clone(),
+                    entry.val.assume_init_ref().clone(),
+                )
+            };
+            cloned.put(k, v);
+        }
+        cloned
+    }
+}
+
 impl<K: Hash + Eq, V> RawLRU<K, V> {
     /// Creates a new LRU Cache that holds at most `cap` items.
     ///
@@ -3031,5 +3054,31 @@ mod tests {
     fn test_zero_cap_no_crash() {
         let cache = RawLRU::<u64, u64>::new(0);
         assert_eq!(cache.unwrap_err(), CacheError::InvalidSize(0))
+    }
+
+    #[test]
+    fn test_clone() {
+        let mut cache = RawLRU::<u64, u64>::new(2).unwrap();
+        cache.put(5, 6);
+        assert_eq!(cache.len(), 1);
+        assert_eq!(cache.get(&5), Some(&6));
+
+        let mut clone = cache.clone();
+        assert_eq!(clone.len(), 1);
+        assert_eq!(clone.get(&5), Some(&6));
+
+        cache.put(6, 7);
+        assert_eq!(cache.len(), 2);
+        assert_eq!(clone.len(), 1);
+
+        clone.put(1, 2);
+        assert_eq!(cache.len(), 2);
+        assert_eq!(clone.len(), 2);
+
+        std::mem::drop(cache);
+
+        clone.put(2, 3);
+        assert_eq!(clone.len(), 2);
+        assert_eq!(clone.peek(&2), Some(&3));
     }
 }

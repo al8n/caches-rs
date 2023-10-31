@@ -157,6 +157,19 @@ pub struct SegmentedCache<K, V, FH = DefaultHashBuilder, RH = DefaultHashBuilder
     protected: RawLRU<K, V, DefaultEvictCallback, FH>,
 }
 
+impl<K: Hash + Eq + Clone, V: Clone, FH: BuildHasher + Clone, RH: BuildHasher + Clone> Clone
+    for SegmentedCache<K, V, FH, RH>
+{
+    fn clone(&self) -> Self {
+        Self {
+            probationary_size: self.probationary_size,
+            probationary: self.probationary.clone(),
+            protected_size: self.protected_size,
+            protected: self.protected.clone(),
+        }
+    }
+}
+
 impl<K: Hash + Eq, V> SegmentedCache<K, V> {
     /// Create a `SegmentedCache` with size and default configurations.
     pub fn new(probationary_size: usize, protected_size: usize) -> Result<Self, CacheError> {

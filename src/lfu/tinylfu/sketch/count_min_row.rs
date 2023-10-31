@@ -10,6 +10,7 @@ use alloc::vec::Vec;
 use core::fmt::{Debug, Formatter};
 use core::ops::{Index, IndexMut};
 
+#[derive(Clone)]
 pub(crate) struct CountMinRow(Vec<u8>);
 
 impl CountMinRow {

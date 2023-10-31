@@ -687,6 +687,24 @@ impl<K: Hash + Eq, V, KH: KeyHasher<K>, FH: BuildHasher, RH: BuildHasher, WH: Bu
     }
 }
 
+impl<
+        K: Hash + Eq + Clone,
+        V: Clone,
+        KH: KeyHasher<K> + Clone,
+        FH: BuildHasher + Clone,
+        RH: BuildHasher + Clone,
+        WH: BuildHasher + Clone,
+    > Clone for WTinyLFUCache<K, V, KH, FH, RH, WH>
+{
+    fn clone(&self) -> Self {
+        Self {
+            tinylfu: self.tinylfu.clone(),
+            lru: self.lru.clone(),
+            slru: self.slru.clone(),
+        }
+    }
+}
+
 #[cfg(test)]
 mod test {
     use core::hash::BuildHasher;
@@ -887,5 +905,23 @@ mod test {
 
         assert_eq!(cache.remove(&3), Some(33));
         assert_eq!(cache.remove(&2), Some(22));
+    }
+
+    #[test]
+    #[cfg_attr(miri, ignore)]
+    fn test_wtinylfu_clone() {
+        let mut cache = WTinyLFUCache::with_sizes(1, 2, 2, 5).unwrap();
+        assert_eq!(cache.cap(), 5);
+        assert_eq!(cache.window_cache_cap(), 1);
+        assert_eq!(cache.main_cache_cap(), 4);
+
+        assert_eq!(cache.put(1, 1), PutResult::Put);
+        assert!(cache.contains(&1));
+        assert_eq!(cache.put(2, 2), PutResult::Put);
+        assert!(cache.contains(&2));
+        assert_eq!(cache.put(3, 3), PutResult::Put);
+        assert!(cache.contains(&3));
+
+        assert_eq!(cache.put(4, 3), PutResult::Evicted { key: 1, value: 1 });
     }
 }

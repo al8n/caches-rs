@@ -150,6 +150,19 @@ impl<K: Hash + Eq> TinyLFU<K> {
     }
 }
 
+impl<K: Clone, KH: Clone> Clone for TinyLFU<K, KH> {
+    fn clone(&self) -> Self {
+        Self {
+            ctr: self.ctr.clone(),
+            doorkeeper: self.doorkeeper.clone(),
+            samples: self.samples,
+            w: self.w,
+            kh: self.kh.clone(),
+            marker: self.marker,
+        }
+    }
+}
+
 impl<K: Hash + Eq, KH: KeyHasher<K>> TinyLFU<K, KH> {
     /// Returns a TinyLFU according to the [`TinyLFUBuilder`]
     ///
@@ -486,6 +499,26 @@ pub(crate) mod test {
         l.increment_hashed_key(1);
         assert!(!l.doorkeeper.contains(1));
         assert_eq!(l.ctr.estimate(1), 1);
+    }
+
+    #[test]
+    fn test_clone() {
+        let mut l: TinyLFU<u64> = TinyLFU::new(4, 4, 0.01).unwrap();
+        l.increment_hashed_key(1);
+        l.increment_hashed_key(1);
+        l.increment_hashed_key(1);
+
+        assert!(l.doorkeeper.contains(1));
+        assert_eq!(l.ctr.estimate(1), 2);
+
+        let cloned = l.clone();
+
+        l.increment_hashed_key(1);
+        assert!(!l.doorkeeper.contains(1));
+        assert_eq!(l.ctr.estimate(1), 1);
+
+        assert!(cloned.doorkeeper.contains(1));
+        assert_eq!(cloned.ctr.estimate(1), 2);
     }
 
     // TODO: fix the bug caused by random
