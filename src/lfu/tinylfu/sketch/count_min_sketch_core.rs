@@ -13,6 +13,7 @@ use core::ops::{Index, IndexMut};
 
 /// `CountMinSketch` is a small conservative-update count-min sketch
 /// implementation with 4-bit counters
+#[derive(Clone)]
 pub(crate) struct CountMinSketch {
     rows: [CountMinRow; DEPTH],
     mask: u64,

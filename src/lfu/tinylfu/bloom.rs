@@ -4,45 +4,26 @@
 //!
 //! I claim no additional copyright over the original implementation.
 
+// use bitvec::vec::BitVec;
 use alloc::{vec, vec::Vec};
 
-const LN_2: f64 = std::f64::consts::LN_2;
+const LN_2: f64 = core::f64::consts::LN_2;
 
-struct Size {
-    size: u64,
-    exp: u64,
-}
-
-fn get_size(n: u64) -> Size {
-    let mut n = n;
-    if n < 512 {
-        n = 512;
-    }
-
-    let mut size = 1u64;
-    let mut exp = 0u64;
-    while size < n {
+fn get_size(ui64: u64) -> (u64, u64) {
+    let ui64 = if ui64 < 512 { 512 } else { ui64 };
+    let mut size = 1;
+    let mut exponent = 0;
+    while size < ui64 {
         size <<= 1;
-        exp += 1;
+        exponent += 1;
     }
-
-    Size { size, exp }
+    (size, exponent)
 }
 
-struct EntriesLocs {
-    entries: u64,
-    locs: u64,
-}
-
-fn calc_size_by_wrong_positives(num_entries: usize, wrongs: f64) -> EntriesLocs {
-    let num_entries = num_entries as f64;
-    let size = -1f64 * num_entries * wrongs.ln() / LN_2.powf(2f64);
-    let locs = (LN_2 * size / num_entries).ceil();
-
-    EntriesLocs {
-        entries: size as u64,
-        locs: locs as u64,
-    }
+fn calc_size_by_wrong_positives(num_entries: f64, wrongs: f64) -> (u64, u64) {
+    let size = (-num_entries * wrongs.ln() / LN_2.powi(2)).ceil() as u64;
+    let locs = (LN_2 * size as f64 / num_entries).ceil() as u64;
+    (size, locs)
 }
 
 /// Bloom filter
@@ -58,27 +39,21 @@ pub(crate) struct Bloom {
 }
 
 impl Bloom {
-    pub fn new(cap: usize, false_positive_ratio: f64) -> Self {
-        let entries_locs = {
-            if false_positive_ratio < 1f64 {
-                calc_size_by_wrong_positives(cap, false_positive_ratio)
-            } else {
-                EntriesLocs {
-                    entries: cap as u64,
-                    locs: false_positive_ratio as u64,
-                }
-            }
+    pub fn new(entries: usize, locs_or_err: f64) -> Self {
+        let (entries, locs) = if locs_or_err < 1.0 {
+            calc_size_by_wrong_positives(entries as f64, locs_or_err)
+        } else {
+            (entries as u64, locs_or_err as u64)
         };
 
-        let size = get_size(entries_locs.entries);
-
-        Self {
-            bitset: vec![0; (size.size >> 6) as usize],
+        let (size, exponent) = get_size(entries);
+        Bloom {
+            bitset: vec![0; size as usize >> 6],
             elem_num: 0,
-            size: size.size - 1,
-            size_exp: size.exp,
-            set_locs: entries_locs.locs,
-            shift: 64 - size.exp,
+            size_exp: exponent,
+            size: size - 1,
+            set_locs: locs,
+            shift: 64 - exponent,
         }
     }
 
@@ -86,7 +61,7 @@ impl Bloom {
     #[inline]
     #[allow(dead_code)]
     pub fn size(&mut self, sz: usize) {
-        self.bitset = vec![0; sz >> 6]
+        self.bitset.resize(sz >> 6, 0)
     }
 
     /// Returns the exp of the size
@@ -98,32 +73,32 @@ impl Bloom {
 
     /// `clear` clear the `Bloom` filter
     pub fn clear(&mut self) {
-        self.bitset.iter_mut().for_each(|v| *v = 0);
+        self.bitset.fill(0)
     }
 
     /// `set` sets the bit[idx] of bitset
-    pub fn set(&mut self, idx: usize) {
-        let ptr = (self.bitset.as_mut_ptr() as usize + ((idx % 64) >> 3)) as *mut u8;
-        unsafe {
-            *ptr |= 1 << (idx % 8);
-        }
+    pub fn set(&mut self, idx: u64) {
+        let array_index = (idx >> 6) as usize;
+        let bit_index = idx % 64;
+        self.bitset[array_index] |= 1 << bit_index;
     }
 
     /// `is_set` checks if bit[idx] of bitset is set, returns true/false.
-    pub fn is_set(&self, idx: usize) -> bool {
-        let ptr = (self.bitset.as_ptr() as usize + ((idx % 64) >> 3)) as *const u8;
-        let r = unsafe { *ptr >> (idx % 8) } & 1;
-        r == 1
+    pub fn is_set(&self, idx: u64) -> bool {
+        let array_index = (idx >> 6) as usize;
+        let bit_index = idx % 64;
+        (self.bitset[array_index] & (1 << bit_index)) != 0
     }
 
     /// `add` adds hash of a key to the bloom filter
     pub fn add(&mut self, hash: u64) {
         let h = hash >> self.shift;
         let l = (hash << self.shift) >> self.shift;
-        (0..self.set_locs).for_each(|i| {
-            self.set(((h + i * l) & self.size) as usize);
+        for i in 0..self.set_locs {
+            let index = (h + i * l) & self.size;
+            self.set(index);
             self.elem_num += 1;
-        });
+        }
     }
 
     /// `contains` checks if bit(s) for entry hash is/are set,
@@ -132,7 +107,8 @@ impl Bloom {
         let h = hash >> self.shift;
         let l = (hash << self.shift) >> self.shift;
         for i in 0..self.set_locs {
-            if !self.is_set(((h + i * l) & self.size) as usize) {
+            let index = (h + i * l) & self.size;
+            if !self.is_set(index) {
                 return false;
             }
         }
@@ -164,6 +140,7 @@ impl Bloom {
 #[cfg(test)]
 mod test {
     use super::*;
+    use alloc::vec::Vec;
     use rand::distributions::Alphanumeric;
     use rand::{thread_rng, Rng};
     use std::collections::hash_map::DefaultHasher;

@@ -48,6 +48,7 @@ impl<K: Hash + Eq> KeyHasher<K> for DefaultKeyHasher<K> {
     {
         let mut s = self.hasher.build_hasher();
         key.hash(&mut s);
+        #[allow(clippy::manual_hash_one)]
         s.finish()
     }
 }

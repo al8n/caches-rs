@@ -1,6 +1,6 @@
 [package]
 name = "caches"
-version = "0.2.6"
+version = "0.2.8"
 authors = ["Al Liu <scygliu1@gmail.com>"]
 description = "This is a Rust implementation for popular caches (support no_std)."
 homepage = "https://github.com/al8n/caches-rs"
@@ -37,10 +37,11 @@ getrandom = { version = "0.2", features = ["js"] }
 
 [features]
 default = ["std"]
-std = ["rand", "rand/std", "rand/std_rng"]
+std = ["rand", "rand/std", "rand/std_rng", "bitvec/std"]
 nightly = ["rand/nightly"]
 
 [dependencies]
+bitvec = { version = "1", default-features = false }
 hashbrown = { version = "0.14", optional = true }
 rand = {version = "0.8", optional = true}
 
