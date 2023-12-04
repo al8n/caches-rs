@@ -12,7 +12,6 @@ use core::hash::{BuildHasher, Hash};
 // f64 function polyfill to support no_std contexts
 use crate::polyfill::floor;
 
-
 /// `DEFAULT_2Q_RECENT_RATIO` is the ratio of the [`TwoQueueCache`] dedicated
 /// to recently added entries that have only been accessed once.
 ///

@@ -10,7 +10,7 @@ use alloc::{vec, vec::Vec};
 use crate::polyfill::{ceil, ln};
 
 const LN_2: f64 = core::f64::consts::LN_2;
-const LN_2_2:f64 = LN_2 * LN_2;
+const LN_2_2: f64 = LN_2 * LN_2;
 
 fn get_size(ui64: u64) -> (u64, u64) {
     let ui64 = if ui64 < 512 { 512 } else { ui64 };
