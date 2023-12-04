@@ -7,7 +7,25 @@
 // use bitvec::vec::BitVec;
 use alloc::{vec, vec::Vec};
 
+#[cfg(feature = "std")]
+use compat::*;
+#[cfg(feature = "std")]
+mod compat {
+    pub(super) fn ceil(val: f64) -> f64 {
+        val.ceil()
+    }
+    pub(super) fn ln(val: f64) -> f64 {
+        val.ln()
+    }
+}
+
+
+#[cfg(not(feature = "std"))]
+use libm::{ceil, log as ln};
+
+
 const LN_2: f64 = core::f64::consts::LN_2;
+const LN_2_2:f64 = LN_2 * LN_2;
 
 fn get_size(ui64: u64) -> (u64, u64) {
     let ui64 = if ui64 < 512 { 512 } else { ui64 };
@@ -21,8 +39,8 @@ fn get_size(ui64: u64) -> (u64, u64) {
 }
 
 fn calc_size_by_wrong_positives(num_entries: f64, wrongs: f64) -> (u64, u64) {
-    let size = (-num_entries * wrongs.ln() / LN_2.powi(2)).ceil() as u64;
-    let locs = (LN_2 * size as f64 / num_entries).ceil() as u64;
+    let size = ceil(-num_entries * ln(wrongs) / LN_2_2) as u64;
+    let locs = ceil(LN_2 * size as f64 / num_entries) as u64;
     (size, locs)
 }
 

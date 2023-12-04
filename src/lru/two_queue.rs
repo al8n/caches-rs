@@ -9,6 +9,14 @@ use alloc::fmt;
 use core::borrow::Borrow;
 use core::hash::{BuildHasher, Hash};
 
+#[cfg(feature = "std")]
+pub(super) fn floor(val: f64) -> f64 {
+    val.floor()
+}
+
+#[cfg(not(feature = "std"))]
+use libm::floor;
+
 /// `DEFAULT_2Q_RECENT_RATIO` is the ratio of the [`TwoQueueCache`] dedicated
 /// to recently added entries that have only been accessed once.
 ///
@@ -191,8 +199,8 @@ impl<RH: BuildHasher, FH: BuildHasher, GH: BuildHasher> TwoQueueCacheBuilder<RH,
         }
 
         // Determine the sub-sizes
-        let rs = ((size as f64) * rr).floor() as usize;
-        let es = ((size as f64) * gr).floor() as usize;
+        let rs = floor((size as f64) * rr) as usize;
+        let es = floor((size as f64) * gr) as usize;
 
         // allocate the lrus
 
@@ -361,8 +369,8 @@ impl<K: Hash + Eq, V> TwoQueueCache<K, V> {
         }
 
         // Determine the sub-sizes
-        let rs = ((size as f64) * rr).floor() as usize;
-        let es = ((size as f64) * gr).floor() as usize;
+        let rs = floor((size as f64) * rr) as usize;
+        let es = floor((size as f64) * gr) as usize;
 
         // allocate the lrus
         let recent = RawLRU::new(size).unwrap();

@@ -43,6 +43,7 @@ nightly = ["rand/nightly"]
 [dependencies]
 bitvec = { version = "1", default-features = false }
 hashbrown = { version = "0.14", optional = true }
+libm = {version = "0.2.8", optional = true}
 rand = {version = "0.8", optional = true}
 
 [dev-dependencies]
