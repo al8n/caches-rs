@@ -9,6 +9,7 @@ use alloc::fmt;
 use core::borrow::Borrow;
 use core::hash::{BuildHasher, Hash};
 
+<<<<<<< HEAD
 #[cfg(feature = "std")]
 pub(super) fn floor(val: f64) -> f64 {
     val.floor()
@@ -16,6 +17,11 @@ pub(super) fn floor(val: f64) -> f64 {
 
 #[cfg(not(feature = "std"))]
 use libm::floor;
+=======
+// f64 function polyfill to support no_std contexts
+use crate::polyfill::floor;
+
+>>>>>>> 143023d (Implement f64 method polyfills with intrinsics support)
 
 /// `DEFAULT_2Q_RECENT_RATIO` is the ratio of the [`TwoQueueCache`] dedicated
 /// to recently added entries that have only been accessed once.

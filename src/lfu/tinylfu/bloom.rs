@@ -7,22 +7,7 @@
 // use bitvec::vec::BitVec;
 use alloc::{vec, vec::Vec};
 
-#[cfg(feature = "std")]
-use compat::*;
-#[cfg(feature = "std")]
-mod compat {
-    pub(super) fn ceil(val: f64) -> f64 {
-        val.ceil()
-    }
-    pub(super) fn ln(val: f64) -> f64 {
-        val.ln()
-    }
-}
-
-
-#[cfg(not(feature = "std"))]
-use libm::{ceil, log as ln};
-
+use crate::polyfill::{ceil, ln};
 
 const LN_2: f64 = core::f64::consts::LN_2;
 const LN_2_2:f64 = LN_2 * LN_2;

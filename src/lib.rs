@@ -89,9 +89,19 @@
 #![cfg_attr(docsrs, feature(doc_cfg))]
 #![cfg_attr(docsrs, allow(unused_attributes))]
 #![deny(missing_docs)]
+#![allow(unused_doc_comments)]
 #![allow(clippy::blocks_in_if_conditions, clippy::enum_variant_names)]
 
+
+#![feature(core_intrinsics)]
+
 extern crate alloc;
+
+#[macro_use]
+extern crate cfg_if;
+
+#[doc(hidden)]
+pub(crate) mod polyfill;
 
 #[cfg(not(feature = "std"))]
 extern crate hashbrown;
