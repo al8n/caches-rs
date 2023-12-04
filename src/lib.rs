@@ -92,7 +92,7 @@
 #![allow(unused_doc_comments)]
 #![allow(clippy::blocks_in_if_conditions, clippy::enum_variant_names)]
 
-#![ cfg_attr( nightly, feature(core_intrinsics))]
+#![ cfg_attr( feature = "nightly", feature(core_intrinsics))]
 
 extern crate alloc;
 
