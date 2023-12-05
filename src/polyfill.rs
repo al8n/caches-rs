@@ -19,19 +19,6 @@ cfg_if! {
         pub(crate) fn floor(val: f64) -> f64 {
             val.floor()
         }
-    } else if #[cfg(feature = "nightly")] {
-        #[inline(always)]
-        pub(crate) fn ceil(val: f64) -> f64 {
-            unsafe {core::intrinsics::ceilf64(val)}
-        }
-        #[inline(always)]
-        pub(crate) fn ln(val: f64) -> f64 {
-            unsafe {core::intrinsics::logf64(val)}
-        }
-        #[inline(always)]
-        pub(crate) fn floor(val: f64) -> f64 {
-            unsafe {core::intrinsics::floorf64(val)}
-        }
     } else {
         use libm;
         #[inline(always)]
