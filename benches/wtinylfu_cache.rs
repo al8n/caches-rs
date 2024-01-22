@@ -1,4 +1,4 @@
-use caches::{Cache, WTinyLFUCache, WTinyLFUCacheBuilder};
+use caches::{lfu::DefaultKeyHasher, Cache, WTinyLFUCache, WTinyLFUCacheBuilder};
 use criterion::{black_box, criterion_group, criterion_main, BatchSize, Criterion};
 use fnv::FnvBuildHasher;
 use rand::{thread_rng, Rng};
@@ -59,10 +59,11 @@ fn bench_wtinylfu_cache_fx_hasher(c: &mut Criterion) {
                         .collect(),
                 );
 
-                let builder = WTinyLFUCacheBuilder::new(82, 6488, 1622, 8192)
+                let builder = WTinyLFUCacheBuilder::<u64, DefaultKeyHasher<u64>, BuildHasherDefault<FxHasher>, BuildHasherDefault<FxHasher>, BuildHasherDefault<FxHasher>>::new(82, 6488, 1622, 8192)
                     .set_window_hasher(BuildHasherDefault::<FxHasher>::default())
                     .set_protected_hasher(BuildHasherDefault::<FxHasher>::default())
-                    .set_probationary_hasher(BuildHasherDefault::<FxHasher>::default());
+                    .set_probationary_hasher(BuildHasherDefault::<FxHasher>::default())
+                    .set_key_hasher(DefaultKeyHasher::default());
                 let l = WTinyLFUCache::from_builder(builder).unwrap();
                 (l, nums)
             },
@@ -99,7 +100,8 @@ fn bench_wtinylfu_cache_fnv_hasher(c: &mut Criterion) {
                         })
                         .collect(),
                 );
-                let builder = WTinyLFUCacheBuilder::new(82, 6488, 1622, 8192)
+                let builder = WTinyLFUCacheBuilder::<u64, DefaultKeyHasher<u64>, BuildHasherDefault<fnv::FnvHasher>, BuildHasherDefault<fnv::FnvHasher>, BuildHasherDefault<fnv::FnvHasher>>::new(82, 6488, 1622, 8192)
+                    .set_key_hasher(DefaultKeyHasher::default())
                     .set_window_hasher(FnvBuildHasher::default())
                     .set_protected_hasher(FnvBuildHasher::default())
                     .set_probationary_hasher(FnvBuildHasher::default());
