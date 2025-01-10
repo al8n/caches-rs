@@ -41,8 +41,9 @@ The MSRV for this crate is 1.55.0.
 - no_std
 
     ```toml
+    # when 0.2.9 is published
     [dependencies]
-    caches = { version: "0.3", default-features = false, features = ["libm", "hashbrown"] }
+    caches = { version = "0.3", default-features = false, features = ["libm", "hashbrown"] }
     ```
 
 ## Usages
