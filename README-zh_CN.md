@@ -21,6 +21,7 @@ See [Introduction](#introduction), [Installation](#installation) and [Usages](#u
 </div>
 
 ## Introduction
+
 The MSRV for this crate is 1.55.0.
 
 - LRU
@@ -29,15 +30,19 @@ The MSRV for this crate is 1.55.0.
   - `TinyLFU`, `SampledLFU`, and `WTinyLFUCache`
 
 ## Installation
+
 - std
+
     ```toml
     [dependencies]
-    caches = "0.2" 
+    caches = "0.3" 
     ```
+
 - no_std
-    ```toml
+
+    ```toml 
     [dependencies]
-    caches = { version: "0.2", default-features = false }
+    caches = { version = "0.3", default-features = false, features = ["libm", "hashbrown"] }
     ```
 
 ## Usages
@@ -56,11 +61,6 @@ Please see [`examples`].
 - The implementation of TinyLFU and SampledLFU are inspired by [Dgraph's ristretto] and dgryski's [go-tinylfu].
 
 - Gil Einziger's paper: [TinyLFU: A Highly Efficient Cache Admission Policy]
-
-## Roadmap
-- [x] `0.2`: Support TinyLFU, SampledLFU, WTinyLFUCache
-- [ ] `0.3`: Support LIRS, DLIRS, DSLRU
-- [ ] `0.4`: Add ttl feature to support
 
 #### License
 
