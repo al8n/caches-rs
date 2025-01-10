@@ -1764,6 +1764,7 @@ mod test {
     use rand::seq::SliceRandom;
     use rand::{thread_rng, Rng};
 
+    #[cfg_attr(miri, ignore)]
     #[test]
     fn test_arc_cache_random_ops() {
         let size = 128;

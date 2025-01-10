@@ -501,7 +501,7 @@ impl<K: Hash + Eq, V, E: OnEvictCallback, S: BuildHasher> Cache<K, V> for RawLRU
     {
         match self.map.get_mut(KeyWrapper::from_ref(k)) {
             None => None,
-            Some(node) => Some(unsafe { &mut *node.as_mut().val.as_mut_ptr() }),
+            Some(node) => Some(unsafe { &mut *(*node.as_ptr()).val.as_mut_ptr() }),
         }
     }
 
@@ -557,10 +557,10 @@ impl<K: Hash + Eq, V, E: OnEvictCallback, S: BuildHasher> Cache<K, V> for RawLRU
             Some(old_node) => unsafe {
                 let node_ptr = &mut *old_node.as_ptr();
                 self.detach(node_ptr);
-                let node = *Box::from_raw(old_node.as_ptr());
+                let mut node = *Box::from_raw(old_node.as_ptr());
                 let val = node.val.assume_init();
-                self.cb(&*node_ptr.key.as_ptr(), &val);
-                ptr::drop_in_place(node_ptr.key.as_mut_ptr());
+                self.cb(&*node.key.as_ptr(), &val);
+                ptr::drop_in_place(node.key.assume_init_mut());
                 Some(val)
             },
         }
@@ -1363,7 +1363,7 @@ impl<K: Hash + Eq, V, E: OnEvictCallback, S: BuildHasher> RawLRU<K, V, E, S> {
     {
         match self.map.get_mut(KeyWrapper::from_ref(k)) {
             None => None,
-            Some(node) => Some(unsafe { &mut *node.as_mut().val.as_mut_ptr() }),
+            Some(node) => Some(unsafe { &mut *(*node.as_ptr()).val.as_mut_ptr() }),
         }
     }
 
@@ -1375,7 +1375,7 @@ impl<K: Hash + Eq, V, E: OnEvictCallback, S: BuildHasher> RawLRU<K, V, E, S> {
     {
         self.map
             .get(KeyWrapper::from_ref(k))
-            .map(|node| unsafe { &*node.as_ref().val.as_ptr() })
+            .map(|node| unsafe { &*(*node.as_ptr()).val.as_ptr() })
     }
 
     // used for avoiding borrow checker issues
@@ -1414,22 +1414,22 @@ impl<K: Hash + Eq, V, E: OnEvictCallback, S: BuildHasher> RawLRU<K, V, E, S> {
         }
     }
 
-    pub(crate) fn put_nonnull(&mut self, mut bks: NonNull<EntryNode<K, V>>) -> PutResult<K, V> {
+    // let old_key = KeyRef {
+    //     k: unsafe { &(*(*(*self.tail).prev).key.as_ptr()) },
+    // };
+    // let old_node = self.map.remove(&old_key).unwrap();
+    pub(crate) fn put_nonnull(&mut self, bks: NonNull<EntryNode<K, V>>) -> PutResult<K, V> {
         if self.len() >= self.cap() {
             unsafe {
                 // Safety: the cache length is not zero, so the cache must have a tail node.
-                let node = ((*self.tail).prev).as_mut().unwrap();
-                self.detach(node);
-
+                let old_key = KeyRef {
+                    k: &(*(*(*self.tail).prev).key.as_ptr()),
+                };
                 // Safety: the node is in cache, so the cache map must have the node.
-                let node = self
-                    .map
-                    .remove(&KeyRef {
-                        k: node.key.as_ptr(),
-                    })
-                    .unwrap();
+                let node = self.map.remove(&old_key).unwrap();
+                self.detach(node.as_ptr());
 
-                self.attach(bks.as_mut());
+                self.attach(bks.as_ptr());
                 self.map.insert(
                     KeyRef {
                         k: bks.as_ref().key.as_ptr(),
@@ -1464,23 +1464,19 @@ impl<K: Hash + Eq, V, E: OnEvictCallback, S: BuildHasher> RawLRU<K, V, E, S> {
 
     pub(crate) fn put_or_evict_nonnull(
         &mut self,
-        mut bks: NonNull<EntryNode<K, V>>,
+        bks: NonNull<EntryNode<K, V>>,
     ) -> Option<NonNull<EntryNode<K, V>>> {
         if self.len() >= self.cap() {
             unsafe {
                 // Safety: the cache length is not zero, so the cache must have a tail node.
-                let node = ((*self.tail).prev).as_mut().unwrap();
-                self.detach(node);
-
+                let old_key = KeyRef {
+                    k: &(*(*(*self.tail).prev).key.as_ptr()),
+                };
                 // Safety: the node is in cache, so the cache map must have the node.
-                let node = self
-                    .map
-                    .remove(&KeyRef {
-                        k: node.key.as_ptr(),
-                    })
-                    .unwrap();
+                let node = self.map.remove(&old_key).unwrap();
+                self.detach(node.as_ptr());
 
-                self.attach(bks.as_mut());
+                self.attach(bks.as_ptr());
                 self.map.insert(
                     KeyRef {
                         k: bks.as_ref().key.as_ptr(),
