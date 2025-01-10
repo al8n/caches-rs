@@ -176,9 +176,9 @@ impl<K: Hash + Eq, KH: KeyHasher<K>> TinyLFU<K, KH> {
     /// # Details
     /// Explanation from [TinyLFU: A Highly Efficient Cache Admission Policy §3.4.2]:
     /// - When querying items, we use both the Doorkeeper and the main structures.
-    /// That is, if the item is included in the Doorkeeper,
-    /// TinyLFU estimates the frequency of this item as its estimation in the main structure plus 1.
-    /// Otherwise, TinyLFU returns just the estimation from the main structure.
+    ///   That is, if the item is included in the Doorkeeper,
+    ///   TinyLFU estimates the frequency of this item as its estimation in the main structure plus 1.
+    ///   Otherwise, TinyLFU returns just the estimation from the main structure.
     ///
     /// [TinyLFU: A Highly Efficient Cache Admission Policy §3.4.2]: https://arxiv.org/pdf/1512.00727.pdf
     pub fn estimate<Q>(&self, key: &Q) -> u64
@@ -199,9 +199,9 @@ impl<K: Hash + Eq, KH: KeyHasher<K>> TinyLFU<K, KH> {
     /// # Details
     /// Explanation from [TinyLFU: A Highly Efficient Cache Admission Policy §3.4.2]:
     /// - When querying items, we use both the Doorkeeper and the main structures.
-    /// That is, if the item is included in the Doorkeeper,
-    /// TinyLFU estimates the frequency of this item as its estimation in the main structure plus 1.
-    /// Otherwise, TinyLFU returns just the estimation from the main structure.
+    ///   That is, if the item is included in the Doorkeeper,
+    ///   TinyLFU estimates the frequency of this item as its estimation in the main structure plus 1.
+    ///   Otherwise, TinyLFU returns just the estimation from the main structure.
     ///
     /// [TinyLFU: A Highly Efficient Cache Admission Policy §3.4.2]: https://arxiv.org/pdf/1512.00727.pdf
     pub fn estimate_hashed_key(&self, kh: u64) -> u64 {

@@ -456,22 +456,22 @@ impl<K: Hash + Eq, V, KH: KeyHasher<K>, FH: BuildHasher, RH: BuildHasher, WH: Bu
         WTinyLFUCacheBuilder::default()
     }
 
-    ///
+    /// Returns the window cache len
     pub fn window_cache_len(&self) -> usize {
         self.lru.len()
     }
 
-    ///
+    /// Returns the window cache cap
     pub fn window_cache_cap(&self) -> usize {
         self.lru.cap()
     }
 
-    ///
+    /// Returns the main cache len
     pub fn main_cache_len(&self) -> usize {
         self.slru.len()
     }
 
-    ///
+    /// Returns the main cache cap
     pub fn main_cache_cap(&self) -> usize {
         self.slru.cap()
     }

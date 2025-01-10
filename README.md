@@ -30,19 +30,20 @@ The MSRV for this crate is 1.55.0.
   - `TinyLFU`, `SampledLFU`, and `WTinyLFUCache`
 
 ## Installation
+
 - std
+
     ```toml
     [dependencies]
-    caches = "0.2" 
+    caches = "0.3" 
     ```
-- no_std (before 0.2.8, it won't compile)
+
+- no_std
 
     ```toml
     # when 0.2.9 is published
     [dependencies]
-    caches = {version = "0.2.9", default-features = false , features = ["hashbrown", "libm"]} 
-    # when 0.2.9 is **NOT** published 
-    caches = { git = "https://github.com/al8n/caches-rs.git", branch = "main", default-features = false, features = ["hashbrown", "libm"] }
+    caches = { version = "0.3", default-features = false, features = ["libm", "hashbrown"] }
     ```
 
 ## Usages

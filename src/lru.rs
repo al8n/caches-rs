@@ -13,14 +13,14 @@
 //! - [`SegmentedCache`] is a fixed size Segmented LRU cache.
 //!
 //! - [`AdaptiveCache`] is a fixed size Adaptive Replacement Cache (ARC).
-//! ARC is an enhancement over the standard LRU cache in that tracks both
-//! frequency and recency of use. This avoids a burst in access to new
-//! entries from evicting the frequently used older entries.
+//!   ARC is an enhancement over the standard LRU cache in that tracks both
+//!   frequency and recency of use. This avoids a burst in access to new
+//!   entries from evicting the frequently used older entries.
 //!
 //!
 //! - [`TwoQueueCache`] is a fixed size 2Q cache. 2Q is an enhancement
-//! over the standard LRU cache in that it tracks both frequently
-//! and recently used entries separately.
+//!   over the standard LRU cache in that it tracks both frequently
+//!   and recently used entries separately.
 //!
 //! ## Trade-Off
 //! In theory, [`AdaptiveCache`] and [`TwoQueueCache`] add some additional
@@ -86,11 +86,11 @@
 //!
 //! ## Acknowledgments
 //! - The implementation of `RawLRU` is highly inspired by
-//! [Jerome Froelich's LRU implementation](https://github.com/jeromefroe/lru-rs)
-//! and [`std::collections`] library of Rust.
+//!   [Jerome Froelich's LRU implementation](https://github.com/jeromefroe/lru-rs)
+//!   and [`std::collections`] library of Rust.
 //!
 //! - Thanks for [HashiCorp's golang-lru](https://github.com/hashicorp/golang-lru)
-//! providing the amazing Go implementation.
+//!   providing the amazing Go implementation.
 //!
 //! - Ramakrishna's paper: [Caching strategies to improve disk system performance]
 //!
