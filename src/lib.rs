@@ -135,7 +135,7 @@ mod macros;
 
 cfg_not_std!(
     /// Re-export for DefaultHashBuilder
-    pub type DefaultHashBuilder = hashbrown::hash_map::DefaultHashBuilder;
+    pub type DefaultHashBuilder = hashbrown::DefaultHashBuilder;
 );
 
 cfg_std!(
