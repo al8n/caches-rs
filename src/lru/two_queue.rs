@@ -1618,6 +1618,7 @@ mod test {
     use rand::{thread_rng, Rng};
     use std::format;
 
+    #[cfg_attr(miri, ignore)]
     #[test]
     fn test_2q_cache_random_ops() {
         let size = 128;

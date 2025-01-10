@@ -725,7 +725,6 @@ mod test {
     }
 
     #[test]
-    #[cfg_attr(miri, ignore)]
     fn test_wtinylfu_custom_hasher() {
         let mut cache: WTinyLFUCache<
             u64,
@@ -823,7 +822,6 @@ mod test {
     }
 
     #[test]
-    #[cfg_attr(miri, ignore)]
     fn test_wtinylfu() {
         let mut cache = WTinyLFUCache::with_sizes(1, 2, 2, 5).unwrap();
         assert_eq!(cache.cap(), 5);
@@ -908,7 +906,6 @@ mod test {
     }
 
     #[test]
-    #[cfg_attr(miri, ignore)]
     fn test_wtinylfu_clone() {
         let mut cache = WTinyLFUCache::with_sizes(1, 2, 2, 5).unwrap();
         assert_eq!(cache.cap(), 5);
