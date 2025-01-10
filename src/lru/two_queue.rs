@@ -390,7 +390,7 @@ impl<K: Hash + Eq, V, RH: BuildHasher, FH: BuildHasher, GH: BuildHasher> Cache<K
     ///
     /// # Note
     /// - [`TwoQueueCache`] guarantees that the size of the recent LRU plus the size of the freq LRU
-    /// is less or equal to the [`TwoQueueCache`]'s size.
+    ///   is less or equal to the [`TwoQueueCache`]'s size.
     /// - The ghost LRU has its own size.
     ///
     /// # Example

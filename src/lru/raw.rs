@@ -33,7 +33,6 @@ use core::iter::{FromIterator, FusedIterator};
 use core::marker::PhantomData;
 use core::mem;
 use core::ptr::{self, NonNull};
-use core::usize;
 
 use crate::cache_api::ResizableCache;
 use crate::lru::CacheError;
@@ -2141,7 +2140,7 @@ mod tests {
     #[test]
     #[cfg(feature = "hashbrown")]
     fn test_with_hasher() {
-        use hashbrown::hash_map::DefaultHashBuilder;
+        use hashbrown::DefaultHashBuilder;
 
         let s = DefaultHashBuilder::default();
         let mut cache = RawLRU::with_hasher(16, s).unwrap();

@@ -30,15 +30,19 @@ The MSRV for this crate is 1.55.0.
   - `TinyLFU`, `SampledLFU`, and `WTinyLFUCache`
 
 ## Installation
+
 - std
+
     ```toml
     [dependencies]
-    caches = "0.2" 
+    caches = "0.3" 
     ```
+
 - no_std
+
     ```toml
     [dependencies]
-    caches = {version: "0.2", default-features = false }
+    caches = { version: "0.3", default-features = false, features = ["libm", "hashbrown"] }
     ```
 
 ## Usages

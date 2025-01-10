@@ -1,6 +1,6 @@
 [package]
 name = "caches"
-version = "0.2.9"
+version = "0.3.0"
 authors = ["Al Liu <scygliu1@gmail.com>"]
 description = "This is a Rust implementation for popular caches (support no_std)."
 homepage = "https://github.com/al8n/caches-rs"
@@ -42,18 +42,18 @@ nightly = ["rand/nightly"]
 
 [dependencies]
 bitvec = { version = "1", default-features = false }
-cfg-if = "1.0.0"
-hashbrown = { version = "0.14", optional = true }
-libm = {version = "0.2.8", optional = true}
-rand = {version = "0.8", optional = true}
+cfg-if = "1"
+hashbrown = { version = "0.15", optional = true }
+libm = { version = "0.2", optional = true }
+rand = { version = "0.8", optional = true }
 
 [dev-dependencies]
-scoped_threadpool = "0.1.*"
-stats_alloc = "0.1.*"
-criterion = "0.5.1"
-fnv = "1.0.7"
-rand = "0.8.4"
-rustc-hash = "1.0"
+scoped_threadpool = "0.1"
+stats_alloc = "0.1"
+criterion = "0.5"
+fnv = "1"
+rand = "0.8"
+rustc-hash = "1"
 cascara = "0.1.0"
 
 [package.metadata.docs.rs]

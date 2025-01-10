@@ -53,11 +53,11 @@
 //!
 //! ## Acknowledgments
 //! - The implementation of `RawLRU` is highly inspired by
-//! [Jerome Froelich's LRU implementation](https://github.com/jeromefroe/lru-rs)
-//! and [`std::collections`] library of Rust.
+//!   [Jerome Froelich's LRU implementation](https://github.com/jeromefroe/lru-rs)
+//!   and [`std::collections`] library of Rust.
 //!
 //! - Thanks for [HashiCorp's golang-lru](https://github.com/hashicorp/golang-lru)
-//! providing the amazing Go implementation.
+//!   providing the amazing Go implementation.
 //!
 //! - Ramakrishna's paper: [Caching strategies to improve disk system performance]
 //!
@@ -90,7 +90,11 @@
 #![cfg_attr(docsrs, allow(unused_attributes))]
 #![deny(missing_docs)]
 #![allow(unused_doc_comments)]
-#![allow(clippy::blocks_in_conditions, clippy::enum_variant_names)]
+#![allow(
+    clippy::blocks_in_conditions,
+    clippy::enum_variant_names,
+    clippy::missing_transmute_annotations
+)]
 
 extern crate alloc;
 
@@ -212,13 +216,13 @@ pub trait OnEvictCallback {
 /// `PutResult` is returned when try to put a entry in cache.
 ///
 /// - **`PutResult::Put`** means that the key is not in cache previously, and the cache has enough
-/// capacity, no evict happens.
+///   capacity, no evict happens.
 ///
 /// - **`PutResult::Update`** means that the key already exists in the cache,
-/// and this operation updates the key's value and the inner is the old value.
+///   and this operation updates the key's value and the inner is the old value.
 ///
 /// - **`PutResult::Evicted`** means that the the key is not in cache previously,
-/// but the cache is full, so the evict happens. The inner is the evicted entry `(Key, Value)`.
+///   but the cache is full, so the evict happens. The inner is the evicted entry `(Key, Value)`.
 ///
 /// - **`PutResult::EvictedAndUpdate`** is only possible to be returned by [`TwoQueueCache`] and [`AdaptiveCache`]. For more information, please see the related examples of [`TwoQueueCache`] and [`AdaptiveCache`]
 ///

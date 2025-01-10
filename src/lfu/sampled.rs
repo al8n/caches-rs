@@ -180,9 +180,8 @@ impl<K: Hash + Eq, KH: KeyHasher<K>, S: BuildHasher> SampledLFU<K, KH, S> {
     /// Remove an entry from SampledLFU by hashed key
     #[inline]
     pub fn remove_hashed_key(&mut self, kh: u64) -> Option<i64> {
-        self.key_costs.remove(&kh).map(|cost| {
+        self.key_costs.remove(&kh).inspect(|&cost| {
             self.used -= cost;
-            cost
         })
     }
 
