@@ -170,6 +170,8 @@ jobs:
         key: ${{ runner.os }}-coverage-dotcargo
     - name: Run test
       run: cargo test
+    - name: Run test(no_std, hashbrown, libm)
+      run: cargo test --no-default-features --features hashbrown,libm
   
   sanitizer:
     name: sanitizer

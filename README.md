@@ -35,10 +35,14 @@ The MSRV for this crate is 1.55.0.
     [dependencies]
     caches = "0.2" 
     ```
-- no_std
+- no_std (before 0.2.8, it won't compile)
+
     ```toml
+    # when 0.2.9 is published
     [dependencies]
-    caches = {version: "0.2", default-features = false }
+    caches = {version = "0.2.9", default-features = false , features = ["hashbrown", "libm"]} 
+    # when 0.2.9 is **NOT** published 
+    caches = { git = "https://github.com/al8n/caches-rs.git", branch = "main", default-features = false, features = ["hashbrown", "libm"] }
     ```
 
 ## Usages
