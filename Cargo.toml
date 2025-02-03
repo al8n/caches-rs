@@ -45,14 +45,14 @@ bitvec = { version = "1", default-features = false }
 cfg-if = "1"
 hashbrown = { version = "0.15", optional = true }
 libm = { version = "0.2", optional = true }
-rand = { version = "0.8", optional = true }
+rand = { version = "0.9", optional = true }
 
 [dev-dependencies]
 scoped_threadpool = "0.1"
 stats_alloc = "0.1"
 criterion = "0.5"
 fnv = "1"
-rand = "0.8"
+rand = "0.9"
 rustc-hash = "1"
 cascara = "0.1.0"
 
